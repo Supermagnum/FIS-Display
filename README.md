@@ -422,5 +422,28 @@ void loop() {
 
 ---
 
+## 8. Acknowledgements and Attribution
+
+- **Navit**  
+  The Navit D-Bus interface description, attribute list, and example signal handling in this README are adapted from the Navit project’s own documentation and external dashboard spec (`navit_dbus_external_dashboards.rst`) and related source code in the Navit repository.
+
+- **TLBFISLib and TLBLib by domnulvlad**  
+  The description of the FIS drawing model (screen/workspace, text and bitmap commands) and the recommended use of full-screen graphics and radio-text style frames are based on the APIs and documentation in `TLBFISLib` and its underlying `TLBLib` library (`send()`, opcode layout, CRC handling). See https://github.com/domnulvlad/TLBFISLib for the original implementation and license.
+
+- **VAGFISWriter by tomaskovacik**  
+  The understanding of 3LB framing, timing, and the `GraphicFromArray(x, y, width, height, array, source)` call used for 1‑bit full-screen bitmaps comes from `VAGFISWriter` and its example sketches, including the `speed_test_FIS.ino` benchmark which demonstrates rendering a 64×88 bitmap from RAM and flash. See https://github.com/tomaskovacik/VAGFISWriter for the original code and license.
+
+- **FISCuntrol by adamforbes92**  
+  The end-to-end architecture (single controller handling both 3LB FIS output and external data sources) and several practical wiring and usability choices are inspired by the `FISCuntrol` project, which provides a complete working implementation for VAG clusters. See https://github.com/adamforbes92/FISCuntrol for details and licensing.
+
+- **FISBlocks by ibanezgomez**  
+  The concept of combining OBD/KWP1281 data with 3LB FIS output in a single device is based on the `FISBlocks` project. This README only sketches such integrations; see https://github.com/ibanezgomez/FISBlocks for the full implementation and license terms.
+
+- **Navigation icons and bitmap assets**  
+  Any navigation icon bitmaps referenced by this project (for example in `firmware/fis_nav_icons.h`) were generated from the Navit project’s SVG maneuver icons (`navit/icons` in the Navit repository) and are used here solely as derived 1‑bit assets. The canonical, editable sources and their licenses are maintained in the Navit repository: https://github.com/Supermagnum/navit.
+
+- **Volkswagen BAP / Navigation_SD documentation**  
+  The understanding of the BAP Navigation_SD function catalogue and its function list comes from Volkswagen AG’s “Bedien- und Anzeige Protokoll (BAP) – LAH V2.80, Function Catalogue – Navigation_SD” document. All rights for that document and its contents remain with Volkswagen AG; this README only summarises high‑level behaviour relevant to hobbyist integration.
+
 *Platform: VW Passat B6 (3C), 2005–2010, PQ46 platform.
 Cluster part numbers: 3C0 920 8xx series.*
