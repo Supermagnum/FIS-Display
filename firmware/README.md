@@ -2,6 +2,8 @@
 
 > WARNING: This firmware is currently **experimental and untested on a real vehicle**. Use at your own risk and validate behaviour on the bench (cluster on the desk, lab supply) before connecting to a car.
 
+PCB files and schematic diagram will be made soon.
+
 Firmware for **Raspberry Pi Pico 2 W** (RP2350) that:
 
 - Listens to Navit navigation events over USB CDC serial from a host (Raspberry Pi, Linux carputer, or Android with Navit).
