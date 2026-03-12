@@ -1,251 +1,144 @@
-[# FIS-Display
-VW Passat B6 FIS Display — Hardware Connections and Software Protocols
+# FIS-Display
+VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols
 
-# VW Passat B6 FIS Display — Hardware Connections and Software Protocols
-## For Navit D-Bus Navigation + Android Radio Integration
-
-> NOTE: The `firmware/` Pico 2 W FIS bridge code in this repository is currently **experimental and untested on a real Passat B6 cluster**. It is provided as a starting point for development; validate thoroughly on the bench before any in‑vehicle use.
+## For Navit D-Bus Navigation + Media/Call Integration via Raspberry Pi Pico 2 W
 
 ---
 
 ## 1. System Overview
 
 ```
-┌─────────────────────┐        Serial / USB        ┌──────────────────────────┐
-│  Raspberry Pico        │ ─────────────────────────► │                          │
-│  running Navit       │   nav data (text/JSON)     │   Arduino Nano / ESP32   │
-│  + D-Bus listener    │                            │   (middleman controller) │
-└─────────────────────┘                             │                          │
-                                                    │                          │
-┌─────────────────────┐        Bluetooth            │                          │
-│  Android head unit   │ ─────────────────────────► │                          │
-│  (radio / AVRCP)     │   track name, call ID      │                          │
-└─────────────────────┘                             └──────────┬───────────────┘
-                                                               │
-                                                        3LB (3-wire bus)
-                                                        ENA / DATA / CLK
-                                                               │
-                                                               ▼
-                                                  ┌────────────────────────┐
-                                                  │  VW Passat B6 (3C)     │
-                                                  │  FIS instrument cluster │
-                                                  │  monochrome LCD screen  │
-                                                  └────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Host device running Navit with D-Bus enabled            │
+│                                                          │
+│  Examples:                                               │
+│  • Android head unit (Navit built with D-Bus support)    │
+│  • Linux carputer / Raspberry Pi running Navit           │
+│  • Any platform where libbinding_dbus.so is active       │
+│                                                          │
+│  D-Bus listener translates Navit signals to serial       │
+│  protocol and forwards to Pico over USB or Bluetooth     │
+└────────────┬─────────────────────────┬───────────────────┘
+             │                         │
+     USB CDC serial            Bluetooth SPP
+     /dev/ttyACM0              (onboard CYW43439)
+     (also powers Pico)        "FIS-Bridge" PIN 0000
+             │                         │
+             └──────────┬──────────────┘
+                        │
+               ┌────────▼─────────┐
+               │ Raspberry Pi     │
+               │ Pico 2 W         │
+               │ (RP2350)         │
+               │                  │
+               │ Middleman only:  │
+               │ receives serial  │
+               │ protocol, injects│
+               │ onto 3LB bus     │
+               └────────┬─────────┘
+                        │
+             3LB (ENA / CLK / DATA)
+             via BS170 level shifters
+             (3.3V ↔ 5V)
+                        │
+          ┌─────────────┴──────────────┐
+          │                            │
+          ▼                            ▼
+┌──────────────────────┐   ┌───────────────────────┐
+│ VW Passat B6 (3C)    │   │ Original ECU           │
+│ FIS/MFA instrument   │◄──│ (talks 3LB natively,   │
+│ cluster LCD screen   │   │  Pico co-exists via    │
+│ 64×88 px, 1-bit      │   │  ENA arbitration)      │
+└──────────────────────┘   └───────────────────────┘
 ```
 
-The Arduino/ESP32 is the bridge. It receives navigation data from the Pi (Navit via D-Bus) and media/call info from the Android radio (Bluetooth AVRCP), then writes formatted text to the FIS screen using the 3LB protocol.
+The Pico 2 W is a **pure middleman**. It has no navigation intelligence — it only receives
+the serial protocol from the host device and injects the translated frames onto the 3LB bus.
+All navigation logic stays on the host device running Navit.
+
+The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico
+co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
+
+> **Note:** The OEM radio has been replaced with an aftermarket head unit. The head unit does
+> **not** communicate over 3LB. Only the original ECU talks to the FIS/MFA natively over 3LB.
 
 ---
 
-## 2. VW Passat B6 FIS Hardware Connections
+## 2. Host Device — Navit with D-Bus
 
-### 2.1 The 3LB (Three-Line Bus) — What It Is
+### 2.1 Supported Platforms
 
-The FIS screen in the Passat B6 cluster communicates with the OEM radio/navigation unit via a **3-wire serial bus** called **3LB** (also known as TLB or TWB). It carries:
+Navit can be built with D-Bus support (`libbinding_dbus.so`) on multiple platforms:
 
-| Wire  | Function                  | Direction         |
-|-------|---------------------------|-------------------|
-| ENA   | Enable / chip select      | Bidirectional     |
-| DATA  | Serial data               | Radio → Cluster   |
-| CLK   | Clock                     | Radio → Cluster   |
+| Platform | Notes |
+|----------|-------|
+| Android head unit | Navit built with D-Bus support. Android includes D-Bus (`android_external_dbus`) |
+| Linux carputer | Native D-Bus session bus, full support |
+| Raspberry Pi (Linux) | Native D-Bus session bus, full support |
+| Any Linux-based system | Native D-Bus session bus, full support |
 
-These three pins are present on the **back of the OEM radio** (mini-ISO connector, middle section) and also accessible directly on the **green T32a connector** on the back of the instrument cluster.
-
-> **Note:** Your Android head unit almost certainly does NOT use this bus — most aftermarket Android radios ignore it entirely. This means there is no conflict and the Arduino can take full ownership of the 3LB.
-
----
-
-### 2.2 Instrument Cluster Connector Pinout (Green T32a)
-
-The relevant 3LB pins on the green connector (T32a) of the Passat B6 cluster:
-
-| T32a Pin | Signal | Notes                          |
-|----------|--------|--------------------------------|
-| 30       | DATA   | Serial data from radio/Arduino |
-| 31       | CLK    | Clock from radio/Arduino       |
-| 32       | ENA    | Enable, bidirectional          |
-
-> Confirm pin numbers against your specific cluster part number. The Passat B6 (3C) uses part numbers in the `3C0 920 8xx` range. Connector colours and pinouts can be verified with VCDS/OBDeleven or the VAG wiring documentation.
-
----
-
-### 2.3 Arduino  Wiring to FIS Cluster
-
-```
-Arduino Nano                    Cluster T32a connector
-─────────────                   ──────────────────────
-Pin D2    ──────────────────►   Pin 32  (ENA)
-Pin D6    ──────────────────►   Pin 30  (DATA)
-Pin D7    ──────────────────►   Pin 31  (CLK)
-GND       ──────────────────►   Cluster GND
-
-Power: Arduino powered from USB 
-No level shifting needed — the cluster runs at 5V logic on these pins.
-```
-
-> If using an **ESP32** instead of Arduino Nano, the ESP32 is 3.3V logic. You will need a **level shifter** (e.g. TXS0108E or BSS138-based) on all three lines before connecting to the cluster.
-
-
-
-The Android radio sends track metadata via **Bluetooth AVRCP profile** (Audio/Video Remote Control Profile). Many Chinese Android head units broadcast artist/track name over AVRCP, 
-
----
-
-### 2.5 Raspberry Pi to Arduino Connection
-
-Connect the Raspberry Pi to the Arduino via **USB** (the Arduino appears as `/dev/ttyUSB0` or `/dev/ttyACM0` on the Pi). The Pi runs the Navit D-Bus listener (see Section 4) and sends nav instructions as simple newline-delimited text or JSON over the USB serial connection.
-
-```
-Raspberry Pi USB ──────────► Arduino USB port
-(e.g. /dev/ttyACM0)          (appears as Serial on Arduino side)
-```
-
-Baud rate: **115200** recommended.
-
----
-
-## 3. The 3LB Protocol
-
-### 3.1 What It Is
-
-The 3LB (Three-Line Bus) is Volkswagen's proprietary serial protocol for sending text and graphics to the FIS/DIS monochrome LCD in the instrument cluster. It predates CAN bus integration and operates at logic level over three wires (ENA, DATA, CLK).
-
-From the cluster's perspective, the Arduino pretends to be the OEM navigation system or radio.
-
-### 3.2 Open Source Libraries (Use One of These)
-
-| Library | Platform | URL | Notes |
-|---------|----------|-----|-------|
-| **TLBFISLib** | Arduino / ESP32 | https://github.com/domnulvlad/TLBFISLib | Most complete, actively maintained, supports full and upper FIS modes |
-| **VAGFISWriter** | Arduino | https://github.com/tomaskovacik/VAGFISWriter | Original reverse-engineered implementation, works well for Passat B6 |
-| **FISCuntrol** | Arduino / ESP32 | https://github.com/adamforbes92/FISCuntrol | Ready-to-use implementation, author uses it in their own car |
-| **FISBlocks** | Arduino | https://github.com/ibanezgomez/FISBlocks | Combines KWP1281 OBD reading AND 3LB FIS writing in one device |
-
-**Recommended:** Start with **TLBFISLib** or **FISCuntrol** — both have clear documentation and confirmed working reports on Passat B6 clusters.
-
-### 3.3 Display Regions
-
-The FIS screen is split into two regions:
-
-| Region | Size | Typical use |
-|--------|------|-------------|
-| Upper line | 2 lines × ~20 chars | Radio station name, navigation street name |
-| Lower region | Full screen mode | OBD data, trip computer, custom text |
-
-Navigation text (turn instruction, street name) is best sent to the **upper region**, which is what the OEM navigation system uses.
-
-### 3.4 Cluster Coding Prerequisite
-
-Before the cluster will accept 3LB data for the navigation slot, it must be coded to expect a navigation source. This requires **VCDS** (Ross-Tech) or **OBDeleven**:
-
-- Module **17 — Instruments**
-- Enable "Navigation present" in the coding byte
-- This activates the Navigation menu entry in the FIS
-
-Without this coding, the upper display region will remain blank even if the Arduino sends correct data.
-
----
-
-## 4. Navit D-Bus Interface
-
-This section summarises the interface defined in the full documentation at:
-`docs/development/navit_dbus_external_dashboards.rst`
-(branch: `feature/navit-dash`, repo: `https://github.com/Supermagnum/navit`)
-
-### 4.1 Prerequisites
-
-- Linux with D-Bus session bus
-- Navit installed with D-Bus binding enabled in `navit.xml`:
-
+Enable D-Bus in `navit.xml`:
 ```xml
 <plugin path="$NAVIT_LIBDIR/*/${NAVIT_LIBPREFIX}libbinding_dbus.so" active="yes"/>
 ```
 
-- Python packages: `python3-dbus`, `python3-gi`
-
-### 4.2 D-Bus Service Details
+### 2.2 D-Bus Service Details
 
 | Item | Value |
 |------|-------|
 | Service name | `org.navit_project.navit` |
 | Bus type | Session bus |
-| Main object path | `/org/navit_project/navit/default_navit` |
-| Route object path | `/org/navit_project/navit/default_navit/default_route` |
-| Vehicle object path | `/org/navit_project/navit/default_navit/default_vehicle` |
+| Main object | `/org/navit_project/navit/default_navit` |
+| Route object | `/org/navit_project/navit/default_navit/default_route` |
+| Vehicle object | `/org/navit_project/navit/default_navit/default_vehicle` |
 
-### 4.3 Subscription Model
+### 2.3 Key Attributes to Subscribe To
 
-1. Connect to session bus
-2. Call `callback_attr_new()` on the main object → returns a callback path
-3. Call `add_attr(callback_path, attr_name)` for each attribute to watch
-4. Listen passively for `callback_attr_update(attr_name, value)` signals
+| Attribute | Meaning |
+|-----------|---------|
+| `navigation_next_turn` | Upcoming maneuver type |
+| `navigation_distance_turn` | Metres to next turn |
+| `navigation_street_name` | Next street name |
+| `navigation_street_name_systematic` | Route number |
+| `navigation_status` | Routing state |
+| `position_speed` | Current speed |
+| `eta` | Estimated arrival (Unix timestamp) |
+| `destination_length` | Remaining distance (m) |
 
-No polling. All updates are event-driven signals.
-
-### 4.4 Key Attributes to Subscribe To
-
-| Attribute | Source Object | Meaning | Example Value |
-|-----------|--------------|---------|---------------|
-| `navigation_next_turn` | Route | Upcoming maneuver type | `turn_right` |
-| `navigation_distance_turn` | Route | Metres to next turn | `350` |
-| `navigation_street_name` | Route | Next street name | `"Main Street"` |
-| `navigation_street_name_systematic` | Route | Route number | `"E45"` |
-| `navigation_status` | Route | Routing state | `routing` |
-| `position_coord_geo` | Vehicle | GPS lat/lon | `(59.9, 10.7)` |
-| `position_speed` | Vehicle | Current speed | `50.0` |
-| `position_direction` | Vehicle | Heading in degrees | `90` |
-| `eta` | Route | Estimated arrival time | Unix timestamp |
-| `destination_length` | Route | Remaining distance (m) | `12000` |
-
-### 4.5 Navigation Status Values
+### 2.4 Navigation Status Values
 
 | Value | Meaning |
 |-------|---------|
 | `no_route` | No active route |
 | `no_destination` | No destination set |
 | `position_wait` | Waiting for GPS |
-| `calculating` | Initial route calculation |
-| `recalculating` | Route being recalculated |
-| `routing` | Active, guiding |
+| `calculating` | Initial calculation |
+| `recalculating` | Rerouting |
+| `routing` | Active guidance |
 
-### 4.6 Maneuver Codes → FIS Text
+### 2.5 D-Bus Listener → Pico Bridge Script
 
-Since the FIS is a small monochrome display, maneuver codes must be converted to short text strings (or abbreviations) before being sent via 3LB. Suggested mappings:
+This script runs on the host device and forwards Navit D-Bus signals to the Pico over either
+USB CDC or Bluetooth SPP. Configure `SERIAL_PORT` to match your transport:
 
-| `navigation_next_turn` value | FIS text suggestion |
-|------------------------------|---------------------|
-| `straight` | `STRAIGHT` |
-| `turn_left` | `TURN LEFT` |
-| `turn_right` | `TURN RIGHT` |
-| `turn_slight_left` | `SLIGHT LEFT` |
-| `turn_slight_right` | `SLIGHT RIGHT` |
-| `turn_sharp_left` | `SHARP LEFT` |
-| `turn_sharp_right` | `SHARP RIGHT` |
-| `roundabout_r1` … `r6` | `ROUNDABT EXIT n` |
-| `u_turn` | `U-TURN` |
-| `keep_left` | `KEEP LEFT` |
-| `keep_right` | `KEEP RIGHT` |
-| `destination` | `DESTINATION` |
-| `recalculating` | `RECALCULATING` |
-
-### 4.7 Python D-Bus Listener (Minimal)
-
-This runs on the Raspberry Pi and forwards nav data to the Arduino over USB serial:
+- USB CDC: typically `/dev/ttyACM0` (Linux/Android)
+- Bluetooth SPP: the rfcomm device created when paired to `FIS-Bridge`, e.g. `/dev/rfcomm0`
 
 ```python
 #!/usr/bin/env python3
 """
-Navit D-Bus listener → Arduino serial bridge.
-Forwards navigation updates to Arduino via /dev/ttyACM0 for FIS display.
+Navit D-Bus listener -> Pico 2 W serial bridge.
+Runs on any platform where Navit is built with libbinding_dbus.so active:
+Android (with D-Bus support), Linux carputer, Raspberry Pi, etc.
+Transport: USB CDC or Bluetooth SPP -- configure SERIAL_PORT below.
 """
 
-import sys
 import serial
 import dbus
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-SERIAL_PORT = "/dev/ttyACM0"
+SERIAL_PORT = "/dev/ttyACM0"   # USB CDC, or e.g. /dev/rfcomm0 for Bluetooth SPP
 BAUD = 115200
 
 WATCHED = [
@@ -253,28 +146,23 @@ WATCHED = [
     "navigation_distance_turn",
     "navigation_street_name",
     "navigation_status",
+    "eta",
+    "destination_length",
 ]
 
-MANEUVER_TEXT = {
-    "straight":          "STRAIGHT",
-    "turn_left":         "TURN LEFT",
-    "turn_right":        "TURN RIGHT",
-    "turn_slight_left":  "SLIGHT LEFT",
-    "turn_slight_right": "SLIGHT RIGHT",
-    "turn_sharp_left":   "SHARP LEFT",
-    "turn_sharp_right":  "SHARP RIGHT",
-    "u_turn":            "U-TURN",
-    "keep_left":         "KEEP LEFT",
-    "keep_right":        "KEEP RIGHT",
-    "destination":       "DESTINATION",
-    "recalculating":     "RECALCULATING",
+MANEUVER_MAP = {
+    "straight":          "straight",
+    "turn_left":         "turn_left",
+    "turn_right":        "turn_right",
+    "turn_slight_left":  "slight_left",
+    "turn_slight_right": "slight_right",
+    "turn_sharp_left":   "sharp_left",
+    "turn_sharp_right":  "sharp_right",
+    "u_turn":            "u_turn",
+    "keep_left":         "keep_left",
+    "keep_right":        "keep_right",
+    "destination":       "destination",
 }
-
-def maneuver_text(code):
-    if code.startswith("roundabout_r"):
-        n = code.replace("roundabout_r", "")
-        return f"ROUNDABT EXIT {n}"
-    return MANEUVER_TEXT.get(code, code.upper()[:16])
 
 class NavitBridge:
     def __init__(self):
@@ -295,20 +183,22 @@ class NavitBridge:
         )
 
     def on_update(self, attr_name, value):
+        msg = None
         if attr_name == "navigation_next_turn":
-            line1 = maneuver_text(str(value))
+            code = MANEUVER_MAP.get(str(value), str(value))
+            msg = f"NAV:TURN:{code}\n"
         elif attr_name == "navigation_distance_turn":
-            m = int(value)
-            line1 = f"{m}m" if m < 1000 else f"{m//1000}.{(m%1000)//100}km"
+            msg = f"NAV:DIST:{int(value)}\n"
         elif attr_name == "navigation_street_name":
-            line1 = str(value)[:16]
+            msg = f"NAV:STREET:{str(value)[:20]}\n"
         elif attr_name == "navigation_status":
-            line1 = str(value).upper()[:16]
-        else:
-            return
-        # Send to Arduino as: NAV:<text>\n
-        msg = f"NAV:{line1}\n"
-        self.ser.write(msg.encode())
+            msg = f"NAV:STATUS:{str(value)}\n"
+        elif attr_name == "eta":
+            msg = f"NAV:ETA:{int(value)}\n"
+        elif attr_name == "destination_length":
+            msg = f"NAV:REMAIN:{int(value)}\n"
+        if msg:
+            self.ser.write(msg.encode())
 
     def run(self):
         GLib.MainLoop().run()
@@ -319,119 +209,215 @@ if __name__ == "__main__":
 
 ---
 
-## 5. Arduino Sketch (Outline)
+## 3. Serial Protocol (Host → Pico, 115200 baud, newline-terminated ASCII)
 
-The Arduino receives lines from the Pi over USB serial and from the Bluetooth module (track names), then writes to the FIS using TLBFISLib:
+The same protocol is used regardless of whether the transport is USB CDC or Bluetooth SPP.
 
-```cpp
-#include <TLBFISLib.h>       // https://github.com/domnulvlad/TLBFISLib
-#include <SoftwareSerial.h>
-
-// 3LB pins to cluster T32a
-#define FIS_ENA   2
-#define FIS_DATA  6
-#define FIS_CLK   7
-
-// Bluetooth module on SoftwareSerial
-SoftwareSerial btSerial(10, 11); // RX, TX
-
-TLBFISLib fis(FIS_ENA, FIS_DATA, FIS_CLK);
-
-String navLine   = "NAVIT READY";
-String mediaLine = "";
-
-void setup() {
-    Serial.begin(115200);   // USB serial from Raspberry Pi
-    btSerial.begin(9600);   // Bluetooth module
-    fis.begin();
-}
-
-void loop() {
-    // Read nav data from Pi
-    if (Serial.available()) {
-        String msg = Serial.readStringUntil('\n');
-        msg.trim();
-        if (msg.startsWith("NAV:")) {
-            navLine = msg.substring(4);
-        }
-    }
-
-    // Read media/call data from Bluetooth
-    if (btSerial.available()) {
-        String bt = btSerial.readStringUntil('\n');
-        bt.trim();
-        if (bt.length() > 0) {
-            mediaLine = bt.substring(0, 16);
-        }
-    }
-
-    // Write to FIS upper display
-    // Line 1: navigation instruction
-    // Line 2: track name or empty
-    fis.setLine(0, navLine.c_str());
-    fis.setLine(1, mediaLine.c_str());
-    fis.update();
-
-    delay(200);
-}
-```
-
-> Exact TLBFISLib API calls (`setLine`, `update`) — check the library's own examples as the API may differ slightly by version.
+| Message | Meaning |
+|---------|---------|
+| `NAV:TURN:<code>` | Upcoming maneuver type |
+| `NAV:DIST:<metres>` | Distance to next turn |
+| `NAV:STREET:<n>` | Next street name (max 20 chars) |
+| `NAV:STATUS:<status>` | Navit routing status |
+| `NAV:ETA:<unix_ts>` | Estimated arrival time |
+| `NAV:REMAIN:<metres>` | Total remaining distance |
+| `BT:TRACK:<info>` | Media track info from head unit |
+| `BT:CALL:<caller>` | Incoming call caller ID |
+| `BT:CALLEND` | Call ended |
 
 ---
 
-## 6. Software Stack Summary
+## 4. Transport — USB CDC or Bluetooth SPP
+
+The host device can connect to the Pico over either transport. The Pico listens on both
+USB CDC and Bluetooth SPP simultaneously.
+
+### USB CDC
+- Connect a USB cable from the host to the Pico USB port
+- Pico appears as `/dev/ttyACM0` (Linux) or equivalent on Android
+- **Also provides 5 V power to the Pico via VSYS** — no separate power supply needed
+- Baud rate: 115200
+
+### Bluetooth SPP
+- Pico advertises as `FIS-Bridge` using classic Bluetooth SPP via BTstack (onboard CYW43439)
+- No external Bluetooth module required
+- **Pair once:** scan for `FIS-Bridge`, enter PIN `0000` if prompted — reconnects automatically
+- On Linux: Pico appears as `/dev/rfcomm0` after pairing
+- Baud rate: 115200
+
+> If using Bluetooth only (no USB), the Pico needs a separate 5 V power source via the VSYS
+> pin — e.g. a car USB adapter or a 12 V → 5 V regulator on the PCB.
+
+---
+
+## 5. Hardware
+
+### 5.1 Controller — Raspberry Pi Pico 2 W
+
+| Property | Value |
+|----------|-------|
+| MCU | RP2350 (dual-core Cortex-M33, 150 MHz) |
+| RAM | 520 KB SRAM |
+| Flash | 4 MB |
+| Wireless | Infineon CYW43439 — WiFi + classic Bluetooth |
+| Logic level | 3.3 V GPIO |
+| Power | 5 V via VSYS (USB or external) |
+| DigiKey P/N | SC0919 |
+
+### 5.2 The 3LB (Three-Line Bus)
+
+| Wire | Function | Direction |
+|------|----------|-----------|
+| ENA | Enable / bus arbitration | Bidirectional |
+| DATA | Serial data | Master → Cluster |
+| CLK | Clock | Master → Cluster |
+
+Bus runs at **5 V logic**, ~125–130 kHz. Pico GPIO is 3.3 V — level shifting required on all lines.
+
+**Bus arbitration:** Before transmitting, a master raises ENA to claim the bus. If ENA is already
+high it waits. The cluster acknowledges with a 100 µs pulse. The Pico and ECU safely share the
+bus without any relay or switch.
+
+### 5.3 Level Shifting
+
+6× **BS170** N-channel MOSFET (TO-92, through-hole), one per 3LB GPIO line (3 RX + 3 TX).
+Each channel uses two 10 kΩ pull-up resistors — one to 3.3 V, one to 5 V.
+
+| Part | DigiKey P/N | Qty |
+|------|-------------|-----|
+| BS170 MOSFET TO-92 THT | BS170-ND | 6 |
+| 10 kΩ resistor 0.25 W THT | — | 12 |
+
+BS170 pinout (flat face toward you, left to right): **Source — Gate — Drain**.
+
+### 5.4 Instrument Cluster Connector (Green T32a)
+
+| T32a Pin | Signal |
+|----------|--------|
+| 30 | DATA |
+| 31 | CLK |
+| 32 | ENA |
+
+Connector type: Kostal MLK 1.2 / MQS 0.63 mm. Use a VAG pin tool to back-probe terminals.
+Do not cut harness wires unless you are absolutely sure what you are doing.
+One can cut the wires needed, add female and male that can connect together or to ECU and gauge cluster side connectors on the PCBs headers. Then it easy to remove the pcb for repairs and restore original function.
+
+### 5.5 Inline PCB Connector
+
+JST PH 2.00 mm pitch, 3-position, one pair each side. Makes the PCB fully removable —
+unplug both sides and connect them directly to bypass the board.
+
+| Part | DigiKey P/N | Qty |
+|------|-------------|-----|
+| JST PHR-3 receptacle housing | 455-1705-ND | 2 |
+| JST B3B-PH-K PCB header (0.079"/2.00 mm pitch, single row) | 455-1126-ND | 2 |
+| JST SPH-002T-P0.5S crimp terminals (24–32 AWG) | 455-2148TR-ND | 6 |
+
+Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for the PCB header.
+
+### 5.6 Pico 2 W GPIO Pinout
+
+**3LB RX — monitor ECU frames, detect bus idle (inputs, via level shifter):**
+
+| GPIO | Signal |
+|------|--------|
+| GPIO0 | FIS_PIN_ENA — monitors bus idle state |
+| GPIO1 | FIS_PIN_CLK — input to PIO SM0 |
+| GPIO2 | FIS_PIN_DATA — input to PIO SM0 |
+
+**3LB TX — inject frames during idle gaps (outputs, via level shifter):**
+
+| GPIO | Signal |
+|------|--------|
+| GPIO3 | FIS_PIN_ENA_OUT — claims bus before injecting |
+| GPIO4 | FIS_PIN_CLK_OUT — PIO SM1 side-set |
+| GPIO5 | FIS_PIN_DATA_OUT — PIO SM1 out_base |
+
+### 5.7 Cluster Coding Prerequisite
+
+Code the cluster using **VCDS** or **OBDeleven**, Module **17 — Instruments**:
+enable **"Navigation present"**. Without this the navigation slot in the FIS/MFA is inactive
+even if the Pico sends correct 3LB frames.
+
+---
+
+## 6. The 3LB Protocol
+
+### 6.1 Open Source Libraries (Reference)
+
+| Library | URL | Notes |
+|---------|-----|-------|
+| TLBFISLib | https://github.com/domnulvlad/TLBFISLib | Most complete, actively maintained |
+| VAGFISWriter | https://github.com/tomaskovacik/VAGFISWriter | Original reverse-engineered implementation |
+| FISCuntrol | https://github.com/adamforbes92/FISCuntrol | Complete project, author uses in own car |
+| FISBlocks | https://github.com/ibanezgomez/FISBlocks | 3LB + KWP1281 OBD combined |
+
+The Pico firmware reimplements 3LB directly in PIO state machines timed to the BAP FCNav
+SDP30DF48V280F specification — no Arduino library dependency.
+
+### 6.2 Display
+
+The FIS/MFA (Fahrerinformationssystem / Multifunktionsanzeige) screen is a **64×88 pixel
+monochrome LCD**, 1-bit. Navigation maneuver icons are pre-generated 64×64 px 1-bit arrays
+stored in flash (`firmware/fis_nav_icons.h`) and rendered with:
+```c
+GraphicFromArray(x, y, width, height, array, 0); // 0 = flash/PROGMEM
+```
+
+---
+
+## 7. Firmware Runtime Behaviour
+
+**Core 0:**
+- Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`)
+- Reads `NAV:*` and `BT:*` messages from both interfaces non-blocking
+- Updates shared `nav_state_t` protected by a mutex
+
+**Core 1:**
+- Monitors 3LB ENA/CLK/DATA via PIO SM0 (RX sniffer)
+- Detects idle gaps between ECU transmissions
+- When bus is idle, checks `nav_state_t` and injects:
+  - Active call → call frame (highest priority)
+  - Active navigation (`routing` / `recalculating`) → nav icon + street name + distance
+  - Media info present, no nav → track name frame
+  - Otherwise → do nothing; ECU frames reach FIS/MFA unmodified
+
+**Injection:** Wait ENA LOW (bus idle) → raise ENA → transmit via PIO SM1 → lower ENA → ECU resumes.
+
+---
+
+## 8. Software Stack Summary
 
 | Layer | Technology | Where it runs |
 |-------|-----------|---------------|
-| Navigation engine | Navit | Raspberry Pi |
-| Nav data interface | Navit D-Bus binding (`libbinding_dbus.so`) | Raspberry Pi |
-| D-Bus listener + serial bridge | Python 3 (`dbus`, `pyserial`) | Raspberry Pi |
-| FIS protocol encoder | TLBFISLib or VAGFISWriter (Arduino C++) | Arduino Nano |
-| Bluetooth media receiver | HC-05 + SoftwareSerial | Arduino Nano |
-| FIS display driver | 3LB hardware (ENA/DATA/CLK) | Arduino → Cluster |
+| Navigation engine | Navit (with `libbinding_dbus.so`) | Host device (Android, Linux, etc.) |
+| D-Bus listener + serial bridge | Python 3 (`dbus`, `pyserial`) | Host device |
+| Serial transport | USB CDC or Bluetooth SPP | Host ↔ Pico |
+| Bus monitor + arbitration | PIO SM0 (3LB RX) | Pico 2 W |
+| FIS/MFA frame injector | PIO SM1 (3LB TX) | Pico 2 W |
+| Bluetooth receiver | BTstack SPP (CYW43439) | Pico 2 W |
+| FIS/MFA display | 3LB hardware (ENA/DATA/CLK) | Pico → Cluster |
 
 ---
 
-## 7. Key References
+## 9. Key References
 
 | Resource | URL |
 |----------|-----|
 | Navit D-Bus external dashboard spec | https://github.com/Supermagnum/navit/blob/feature/navit-dash/docs/development/navit_dbus_external_dashboards.rst |
-| TLBFISLib (Arduino 3LB library) | https://github.com/domnulvlad/TLBFISLib |
-| VAGFISWriter (original 3LB implementation) | https://github.com/tomaskovacik/VAGFISWriter |
-| FISCuntrol (complete Arduino project) | https://github.com/adamforbes92/FISCuntrol |
-| FISBlocks (3LB + KWP1281 OBD combined) | https://github.com/ibanezgomez/FISBlocks |
-| Passat B6 CAN traces (PQ46 platform) | https://github.com/rusefi/rusefi_documentation/tree/master/OEM-Docs/VAG/2006-Passat-B6 |
-| Hackaday: Navit on VW OEM head unit | https://hackaday.io/project/8128-navit-on-a-vw-oem-navigation-system |
-| Hackaday: VW CAN bus gaming cluster | https://hackaday.io/project/6288-volkswagen-can-bus-gaming |
-| SVG maneuver icons for dashboards | https://github.com/Supermagnum/navit/tree/feature/navit-dash/docs/development/svg-examples |
+| Navit project | https://github.com/navit-gps/navit |
+| TLBFISLib | https://github.com/domnulvlad/TLBFISLib |
+| VAGFISWriter | https://github.com/tomaskovacik/VAGFISWriter |
+| VAGFISReader theory of operation | https://github.com/tomaskovacik/VAGFISReader/wiki/Theory-of-operation |
+| FISCuntrol | https://github.com/adamforbes92/FISCuntrol |
+| FISBlocks | https://github.com/ibanezgomez/FISBlocks |
+| FIS-Fool intercept concept | http://kuni.bplaced.net/_Homepage/FisFool/FisFool_Overview_e.html |
+| BAP FCNav SDP30DF48V280F (3LB timing spec) | https://github.com/Supermagnum/FIS-Display/blob/main/pdfcoffee.com_bap-fcnav-sdp30df48v280fpdf-pdf-free.pdf |
+| SVG maneuver icons | https://github.com/Supermagnum/navit/tree/feature/navit-dash/docs/development/svg-examples |
+| Raspberry Pi Pico 2 W datasheet | https://datasheets.raspberrypi.com/picow/pico-2-w-datasheet.pdf |
 
 ---
 
-## 8. Acknowledgements and Attribution
-
-- **Navit**  
-  The Navit D-Bus interface description, attribute list, and example signal handling in this README are adapted from the Navit project’s own documentation and external dashboard spec (`navit_dbus_external_dashboards.rst`) and related source code in the Navit repository.
-
-- **TLBFISLib and TLBLib by domnulvlad**  
-  The description of the FIS drawing model (screen/workspace, text and bitmap commands) and the recommended use of full-screen graphics and radio-text style frames are based on the APIs and documentation in `TLBFISLib` and its underlying `TLBLib` library (`send()`, opcode layout, CRC handling). See https://github.com/domnulvlad/TLBFISLib for the original implementation and license.
-
-- **VAGFISWriter by tomaskovacik**  
-  The understanding of 3LB framing, timing, and the `GraphicFromArray(x, y, width, height, array, source)` call used for 1‑bit full-screen bitmaps comes from `VAGFISWriter` and its example sketches, including the `speed_test_FIS.ino` benchmark which demonstrates rendering a 64×88 bitmap from RAM and flash. See https://github.com/tomaskovacik/VAGFISWriter for the original code and license.
-
-- **FISCuntrol by adamforbes92**  
-  The end-to-end architecture (single controller handling both 3LB FIS output and external data sources) and several practical wiring and usability choices are inspired by the `FISCuntrol` project, which provides a complete working implementation for VAG clusters. See https://github.com/adamforbes92/FISCuntrol for details and licensing.
-
-- **FISBlocks by ibanezgomez**  
-  The concept of combining OBD/KWP1281 data with 3LB FIS output in a single device is based on the `FISBlocks` project. This README only sketches such integrations; see https://github.com/ibanezgomez/FISBlocks for the full implementation and license terms.
-
-- **Navigation icons and bitmap assets**  
-  Any navigation icon bitmaps referenced by this project (for example in `firmware/fis_nav_icons.h`) were generated from the Navit project’s SVG maneuver icons (`navit/icons` in the Navit repository) and are used here solely as derived 1‑bit assets. The canonical, editable sources and their licenses are maintained in the Navit repository: https://github.com/Supermagnum/navit.
-
-- **Volkswagen BAP / Navigation_SD documentation**  
-  The understanding of the BAP Navigation_SD function catalogue and its function list comes from Volkswagen AG’s “Bedien- und Anzeige Protokoll (BAP) – LAH V2.80, Function Catalogue – Navigation_SD” document. All rights for that document and its contents remain with Volkswagen AG; this README only summarises high‑level behaviour relevant to hobbyist integration.
-
 *Platform: VW Passat B6 (3C), 2005–2010, PQ46 platform.
-Cluster part numbers: 3C0 920 8xx series.*
-](https://github.com/Supermagnum/GR-K-GDSS)
+Cluster part numbers: 3C0 920 8xx series.
+FIS/MFA screen: 64×88 px monochrome LCD, 1-bit, 3LB protocol.*
