@@ -4,6 +4,8 @@ VW Passat B6 FIS Display — Hardware Connections and Software Protocols
 # VW Passat B6 FIS Display — Hardware Connections and Software Protocols
 ## For Navit D-Bus Navigation + Android Radio Integration
 
+> NOTE: The `firmware/` Pico 2 W FIS bridge code in this repository is currently **experimental and untested on a real Passat B6 cluster**. It is provided as a starting point for development; validate thoroughly on the bench before any in‑vehicle use.
+
 ---
 
 ## 1. System Overview

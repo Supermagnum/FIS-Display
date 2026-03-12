@@ -1,5 +1,7 @@
 ## Pico FIS Bridge Firmware (VW Passat B6 FIS)
 
+> WARNING: This firmware is currently **experimental and untested on a real vehicle**. Use at your own risk and validate behaviour on the bench (cluster on the desk, lab supply) before connecting to a car.
+
 Firmware for Raspberry Pi Pico 2 W (RP2350) that:
 
 - Listens to Navit navigation and Android media/call events over USB CDC and Bluetooth (HC‑05 on UART1).
