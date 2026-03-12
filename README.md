@@ -12,7 +12,7 @@ VW Passat B6 FIS Display — Hardware Connections and Software Protocols
 
 ```
 ┌─────────────────────┐        Serial / USB        ┌──────────────────────────┐
-│  Raspberry Pi        │ ─────────────────────────► │                          │
+│  Raspberry Pico        │ ─────────────────────────► │                          │
 │  running Navit       │   nav data (text/JSON)     │   Arduino Nano / ESP32   │
 │  + D-Bus listener    │                            │   (middleman controller) │
 └─────────────────────┘                             │                          │
@@ -69,7 +69,7 @@ The relevant 3LB pins on the green connector (T32a) of the Passat B6 cluster:
 
 ---
 
-### 2.3 Arduino Nano Wiring to FIS Cluster
+### 2.3 Arduino  Wiring to FIS Cluster
 
 ```
 Arduino Nano                    Cluster T32a connector
@@ -79,30 +79,15 @@ Pin D6    ──────────────────►   Pin 30  (D
 Pin D7    ──────────────────►   Pin 31  (CLK)
 GND       ──────────────────►   Cluster GND
 
-Power: Arduino powered from car 12V via a 7805 or buck converter to 5V.
+Power: Arduino powered from USB 
 No level shifting needed — the cluster runs at 5V logic on these pins.
 ```
 
 > If using an **ESP32** instead of Arduino Nano, the ESP32 is 3.3V logic. You will need a **level shifter** (e.g. TXS0108E or BSS138-based) on all three lines before connecting to the cluster.
 
----
 
-### 2.4 Bluetooth Module Wiring (for Android Radio → Arduino)
 
-Use an HC-05 or HC-06 Bluetooth module connected to the Arduino via hardware serial (or SoftwareSerial on spare pins):
-
-```
-HC-05 / HC-06               Arduino Nano
-─────────────               ────────────
-VCC  ─────────────────────► 5V
-GND  ─────────────────────► GND
-TXD  ─────────────────────► Pin D10 (SoftwareSerial RX)
-RXD  ─────────────────────► Pin D11 (SoftwareSerial TX)
-                             (use 1kΩ + 2kΩ voltage divider on RXD line
-                              to step Arduino 5V TX down to 3.3V for HC-05 RX)
-```
-
-The Android radio sends track metadata via **Bluetooth AVRCP profile** (Audio/Video Remote Control Profile). Many Chinese Android head units broadcast artist/track name over AVRCP, which the HC-05 can receive and forward as a serial string.
+The Android radio sends track metadata via **Bluetooth AVRCP profile** (Audio/Video Remote Control Profile). Many Chinese Android head units broadcast artist/track name over AVRCP, 
 
 ---
 
