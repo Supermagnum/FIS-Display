@@ -1,0 +1,43 @@
+; fis_3lb_rx.pio
+; 3LB receive state machine for VW FIS bus
+;
+; This program passively samples the DATA line on rising edges of CLK.
+; ENA is *not* driven here – it should be monitored separately on the CPU
+; side via GPIO to detect frame boundaries (low = active frame, high = idle).
+;
+; Pin assignment (configured from C code):
+; - in_base  : DATA pin (GPIO 2 in the reference design)
+; - jmp_pin  : CLK pin  (GPIO 1 in the reference design)
+;
+; Behaviour:
+; - Continuously waits for CLK rising edge.
+; - On each rising edge, samples DATA and shifts one bit into ISR.
+; - After 8 bits, automatically pushes one byte to the RX FIFO (autopush).
+;
+; Timing:
+; - The PIO clock must be fast enough compared to the 3LB CLK so that
+;   the 'wait for rising edge → sample' sequence completes before the
+;   data changes again. This is satisfied for typical FIS bus speeds
+;   when PIO runs at 125–150 MHz.
+
+.program fis_3lb_rx
+
+; Waits for CLK rising edges (jmp_pin) and samples DATA (in_base)
+; into the shift register. Autopush and shift direction/threshold
+; are configured from C (typically: shift left, autopush after 8 bits).
+
+.wrap_target
+bitloop:
+    ; Wait for CLK to go low then high (rising edge on jmp pin)
+    wait 0 pin        ; CLK low
+    wait 1 pin        ; CLK high
+
+    ; Sample one bit from DATA into ISR
+    in pins, 1
+
+    ; X should be preloaded from C to 7 and will underflow after 8 bits,
+    ; but autopush will normally handle byte boundaries for us, so we
+    ; simply loop forever here.
+    jmp bitloop
+.wrap
+

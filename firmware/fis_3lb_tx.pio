@@ -1,0 +1,42 @@
+; fis_3lb_tx.pio
+; 3LB transmit state machine for VW FIS bus
+;
+; This program actively drives DATA towards the instrument cluster.
+; CLK is driven using side-set, ENA is controlled from the CPU as a
+; regular GPIO (asserted low for the duration of a frame).
+;
+; Pin assignment (configured from C code):
+; - out_base : DATA pin (GPIO 5 in the reference design)
+; - side-set : CLK pin  (GPIO 4 in the reference design)
+;
+; Data format:
+; - TX FIFO supplies bytes, MSB first.
+; - Autopull is enabled with a threshold of 8 bits.
+;
+; Behaviour:
+; - For each byte from the TX FIFO:
+;   - Assumes ENA is already low (active), handled in C code.
+;   - Clocks out 8 bits on DATA, MSB first, toggling CLK (side-set) for each bit.
+;   - After the last bit, C code will deassert ENA high (idle).
+;
+; The higher-level C code is responsible for inserting any required
+; inter-byte and inter-frame gaps according to the 3LB timing.
+
+.program fis_3lb_tx
+.side_set 1 opt    ; 1 side-set bit used for CLK (0=low, 1=high)
+
+.wrap_target
+pull        block           ; Pull next byte from TX FIFO into OSR
+    set x, 7                ; Bit counter (7..0)
+
+bitloop:
+    ; Output next bit on DATA while CLK is low
+    out pins, 1   side 0    ; DATA updated, CLK low
+    ; Short high pulse on CLK with DATA stable
+    nop          side 1 [1]
+    ; Return CLK low before next bit
+    nop          side 0 [1]
+
+    jmp x--, bitloop        ; Loop until all 8 bits sent
+.wrap
+
