@@ -272,7 +272,7 @@ USB CDC and Bluetooth SPP simultaneously.
 | DATA | Serial data | Master → Cluster |
 | CLK | Clock | Master → Cluster |
 
-Bus runs at **5 V logic**, ~125–130 kHz. Pico GPIO is 3.3 V — level shifting required on all lines.
+Bus runs at **5 V logic**,  2500 kHz. Pico GPIO is 3.3 V — level shifting required on all lines.
 
 **Bus arbitration:** Before transmitting, a master raises ENA to claim the bus. If ENA is already
 high it waits. The cluster acknowledges with a 100 µs pulse. The Pico and ECU safely share the
@@ -281,7 +281,7 @@ bus without any relay or switch.
 ### 5.3 Level Shifting
 
 6× **BS170** N-channel MOSFET (TO-92, through-hole), one per 3LB GPIO line (3 RX + 3 TX).
-Each channel uses two 10 kΩ pull-up resistors — one to 3.3 V, one to 5 V.
+Each channel uses two 2.2 kΩ pull-up non inductive resistors — one to 3.3 V, one to 5 V.
 
 | Part | DigiKey P/N | Qty |
 |------|-------------|-----|
