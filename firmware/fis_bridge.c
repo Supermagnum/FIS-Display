@@ -66,7 +66,7 @@
      nav_state_init_struct(&g_nav_state);
      critical_section_init(&g_nav_lock);
 
-     // Initialise serial I/O (USB + Bluetooth HC-05).
+     // Initialise serial I/O (USB CDC and Bluetooth SPP via BTstack).
      serial_parser_init();
 
      // Initialise 3LB RX and TX on PIO0.

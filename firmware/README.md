@@ -2,79 +2,89 @@
 
 > WARNING: This firmware is currently **experimental and untested on a real vehicle**. Use at your own risk and validate behaviour on the bench (cluster on the desk, lab supply) before connecting to a car.
 
-Firmware for Raspberry Pi Pico 2 W (RP2350) that:
+Firmware for **Raspberry Pi Pico 2 W** (RP2350) that:
 
-- Listens to Navit navigation events over USB CDC serial from a Raspberry Pi running Navit.
-- Listens to Android head unit media and call events over **Bluetooth SPP** using the onboard CYW43439 radio via BTstack (no external Bluetooth module required).
+- Listens to Navit navigation events over USB CDC serial from a host (Raspberry Pi, Linux carputer, or Android with Navit).
+- Listens to Android head unit media and call events over **Bluetooth SPP** using the onboard CYW43439 via BTstack (no external Bluetooth module).
+- Receives the same **serial protocol** (NAV:*, BT:*) on both USB CDC and Bluetooth SPP; fully integrated on both transports.
 - Monitors the Passat B6 3LB bus (ENA/CLK/DATA) to detect idle gaps between ECU frames.
-- Injects additional FIS/MFA frames only during idle gaps on the bus (no relays or analog switches required).
+- Injects FIS/MFA frames only during idle gaps (no relays or analog switches).
 
-This is a **bus co-existence** design: the original ECU retains full control of the FIS/MFA display at all times. The Pico only transmits during free time slots between ECU frames, using the ENA line for bus arbitration as defined by the 3LB protocol.
+The Pico is a **pure middleman**: the host runs Navit with D-Bus and a bridge script that forwards the protocol to the Pico over USB or Bluetooth.
 
-> **Note:** The OEM radio has been replaced with an Android head unit. The Android head unit does **not** communicate over 3LB. Only the original ECU talks to the FIS/MFA natively over 3LB. The Android head unit communicates with the Pico exclusively via Bluetooth SPP.
+> **Note:** The OEM radio has been replaced with an Android head unit. The Android head unit does **not** communicate over 3LB. Only the original ECU talks to the FIS/MFA natively over 3LB. The Android head unit communicates with the Pico via Bluetooth SPP.
 
 ---
 
 ### Bluetooth pairing
 
-The Pico advertises itself as **`FIS-Bridge`** using classic Bluetooth SPP (Serial Port Profile) via BTstack.
+The Pico advertises as **`FIS-Bridge`** using classic Bluetooth SPP (BTstack, onboard CYW43439).
 
-Pairing procedure (one time only):
+Pairing (one time only):
 1. Power up the PCB.
 2. On the Android head unit, open Bluetooth settings and scan for devices.
-3. Select `FIS-Bridge` from the list.
+3. Select `FIS-Bridge`.
 4. Enter PIN **`0000`** if prompted.
-5. Pairing is permanent. On subsequent power-ups the Android head unit reconnects automatically without user interaction.
+5. Pairing is permanent; the head unit reconnects automatically on later power-ups.
 
-The Pico auto-accepts all pairing requests — no confirmation is required or possible on the Pico side.
+The Pico auto-accepts all pairing requests — no user interaction on the Pico side.
 
 ---
 
-### Pinout (Pico 2 W side)
+### Pinout (Pico 2 W)
 
-All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 10 kΩ pull-up resistors to each voltage rail per channel.
+All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 10 kOhm pull-ups to each rail per channel.
 
-**3LB RX — monitor (inputs, sniff ECU frames and detect bus idle):**
+**3LB RX (inputs):**
 
-- `GPIO0` – `FIS_PIN_ENA` (ENA line, input, monitors bus idle state, via level shifter)
-- `GPIO1` – `FIS_PIN_CLK` (CLK line, input to PIO SM0 RX, via level shifter)
-- `GPIO2` – `FIS_PIN_DATA` (DATA line, input to PIO SM0 RX, via level shifter)
+- `GPIO0` – `FIS_PIN_ENA` (ENA, input, bus idle, via level shifter)
+- `GPIO1` – `FIS_PIN_CLK` (CLK, input to PIO SM0, via level shifter)
+- `GPIO2` – `FIS_PIN_DATA` (DATA, input to PIO SM0, via level shifter)
 
-**3LB TX — inject (outputs, Pico drives FIS/MFA during idle gaps):**
+**3LB TX (outputs):**
 
-- `GPIO3` – `FIS_PIN_ENA_OUT` (ENA line, output, claims bus before injecting, via level shifter)
-- `GPIO4` – `FIS_PIN_CLK_OUT` (CLK line, output, PIO SM1 side-set, via level shifter)
-- `GPIO5` – `FIS_PIN_DATA_OUT` (DATA line, output, PIO SM1 out_base, via level shifter)
+- `GPIO3` – `FIS_PIN_ENA_OUT` (ENA, output, claim bus before inject, via level shifter)
+- `GPIO4` – `FIS_PIN_CLK_OUT` (CLK, PIO SM1 side-set, via level shifter)
+- `GPIO5` – `FIS_PIN_DATA_OUT` (DATA, PIO SM1 out_base, via level shifter)
 
-**USB (Navit serial):**
+**USB:** Pico USB CDC for Navit/host protocol; also 5 V power (VSYS). No 12 V on the PCB.
 
-- Pico native USB CDC — virtual serial port from the Raspberry Pi running Navit (`/dev/ttyACM0`).
-- Also used for 5 V power input (VSYS) from the Raspberry Pi USB port.
-- No 12 V input is required on the PCB.
+**Bluetooth:** Onboard CYW43439 via BTstack SPP. Same NAV/BT protocol as USB; no extra GPIO.
 
-**Bluetooth (Android head unit media and call info):**
+---
 
-- Onboard CYW43439 via BTstack SPP.
-- No external Bluetooth module. No additional GPIO pins used.
+### Transport (host to Pico)
+
+- **USB CDC** — Host uses `/dev/ttyACM0` (Linux) or equivalent; 115200 baud, newline-terminated.
+- **Bluetooth SPP** — Fully integrated. Pico advertises as `FIS-Bridge`, PIN `0000`; host pairs once and sends the same NAV/BT protocol over SPP. BTstack runs alongside USB CDC.
+
+---
+
+### Serial protocol (115200 baud, newline-terminated)
+
+Same on USB CDC and Bluetooth SPP:
+
+| Message | Meaning |
+|---------|---------|
+| `NAV:TURN:<code>` | Maneuver type |
+| `NAV:DIST:<metres>` | Distance to next turn |
+| `NAV:STREET:<name>` | Next street name (max 20 chars) |
+| `NAV:STATUS:<status>` | `routing`, `recalculating`, `no_route`, etc. |
+| `NAV:ETA:<unix_ts>` | Estimated arrival |
+| `NAV:REMAIN:<metres>` | Remaining distance |
+| `BT:TRACK:<info>` | Media track info |
+| `BT:CALL:<caller>` | Incoming call caller ID |
+| `BT:CALLEND` | Call ended |
 
 ---
 
 ### Hardware notes
 
-**Level shifters:** 6× BS170 N-channel MOSFET (TO-92, THT), one per 3LB line (3 RX + 3 TX). Each channel uses two 10 kΩ pull-up resistors — one to 3.3 V, one to 5 V. This implements the standard NXP bidirectional open-drain level shift circuit.
+**Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 10 kOhm pull-ups per channel (3.3 V and 5 V). See `BOM.md`.
 
-**Inline connectors:** JST PH 2.00 mm pitch, 3-position (single row), one pair each side:
-- Cluster side: PHR-3 housing (DigiKey 455-1705-ND) + B3B-PH-K PCB header (DigiKey 455-1126-ND)
-- ECU/harness side: same parts
-- Crimp terminals: SPH-002T-P0.5S (DigiKey 455-2148TR-ND), fits 24–32 AWG wire
-- Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for the PCB header
+**Inline connectors:** JST PH 2.00 mm, 3-position; one pair each side (cluster and harness). PHR-3 housing, B3B-PH-K header, SPH-002T-P0.5S crimps (24–32 AWG).
 
-**Cluster wiring:** Tap the three 3LB lines at the cluster green connector T32a:
-- `T32a pin 30` – DATA
-- `T32a pin 31` – CLK
-- `T32a pin 32` – ENA
-
-The Pico RX and TX lines for each 3LB signal connect in parallel to the same cluster pins through the level shifters. No relay or analog switch is needed — the 3LB ENA line provides bus arbitration natively.
+**Cluster:** Tap 3LB at green T32a — pin 30 DATA, 31 CLK, 32 ENA. Pico RX/TX connect in parallel through level shifters; no relay or analog switch.
 
 ---
 
@@ -82,71 +92,46 @@ The Pico RX and TX lines for each 3LB signal connect in parallel to the same clu
 
 ```text
 firmware/
-  CMakeLists.txt       – Pico SDK build configuration
-  fis_3lb_rx.pio       – PIO SM0 program for 3LB RX (CLK/DATA sniffer)
-  fis_3lb_tx.pio       – PIO SM1 program for 3LB TX (DATA + side-set CLK)
-  fis_rx.h/.c          – RX monitoring and bus idle detection
-  fis_display.h/.c     – TX helpers for injecting navigation/media/call frames
-  serial_parser.h/.c   – USB CDC line parser, updates nav_state
-  nav_state.h          – nav_state_t structure and enums
-  fis_bridge.c         – main(), dual-core setup, decision loop
-  fis_nav_icons.h      – Pre-generated 1-bit nav icon arrays (64×64 px, PROGMEM)
+  CMakeLists.txt       – Pico SDK build (Pico 2 W)
+  fis_3lb_rx.pio       – PIO SM0: 3LB RX (sniffer)
+  fis_3lb_tx.pio       – PIO SM1: 3LB TX (inject)
+  fis_rx.h/.c          – Bus idle detection (ENA)
+  fis_display.h/.c     – Frame build and inject (nav/media/call)
+  serial_parser.h/.c   – USB CDC and Bluetooth SPP line parser
+  nav_state.h          – nav_state_t, enums
+  fis_bridge.c         – main(), dual-core, decision loop
+  fis_nav_icons.h      – Pre-generated 1-bit nav icon arrays (64x64 px)
 ```
 
 ---
 
-### Build instructions
+### Build
 
-1. Install the Raspberry Pi Pico SDK and toolchain as described in the official documentation.
-2. In the `firmware/` directory, ensure `pico_sdk_import.cmake` is available or adjust the include path in `CMakeLists.txt`.
-3. Create a build directory and configure CMake:
+1. Install the Raspberry Pi Pico SDK (Pico 2 W supported).
+2. From `firmware/`:
 
 ```bash
-mkdir build
-cd build
+mkdir build && cd build
 cmake ..
 make -j4
 ```
 
-4. The build produces a `pico_fis_bridge.uf2` file. Flash it to the Pico 2 W by:
-   - Holding BOOTSEL while plugging in USB.
-   - Mounting the mass-storage device.
-   - Copying the `.uf2` file to the device.
+3. Flash `pico_fis_bridge.uf2` via BOOTSEL (USB mass storage).
 
 ---
 
 ### Runtime behaviour
 
-**Core 0:**
-- Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`).
-- Reads text lines from USB CDC (Navit) and Bluetooth SPP (Android head unit) non-blocking.
-- Parses messages:
-  - `NAV:TURN:<code>` — upcoming maneuver type
-  - `NAV:DIST:<metres>` — distance to next turn
-  - `NAV:STREET:<name>` — next street name (max 20 chars)
-  - `NAV:STATUS:<status>` — Navit routing status
-  - `NAV:ETA:<unix_ts>` — estimated arrival time
-  - `NAV:REMAIN:<metres>` — total remaining distance
-  - `BT:TRACK:<info>` — media track info from Android head unit
-  - `BT:CALL:<caller>` — incoming call caller ID from Android head unit
-  - `BT:CALLEND` — call ended
-- Updates shared `nav_state_t` protected by a mutex.
+**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses NAV/BT messages, updates shared `nav_state_t` under a critical section.
 
-**Core 1:**
-- Runs the 3LB bus loop continuously.
-- Uses `fis_rx_task()` and `fis_bus_idle()` to monitor ENA and detect inter-frame gaps between ECU transmissions.
-- When bus is idle, snapshots `nav_state_t` and decides what to inject:
-  - Active call → `fis_display_inject_call()` (highest priority)
-  - Active navigation (`routing` or `recalculating`) → `fis_display_inject_nav()` with icon from `fis_nav_icons.h`
-  - No nav active, media info present → `fis_display_inject_media()`
-  - Otherwise → do nothing, ECU frames reach FIS/MFA unmodified
+**Core 1:** Runs the 3LB loop: monitors ENA for idle, snapshots `nav_state_t`, injects call frame, nav frame, or media frame as appropriate; otherwise leaves bus to the ECU.
 
-**Injection procedure:** Wait for ENA LOW (bus idle) → raise ENA → transmit frame via PIO SM1 → lower ENA → ECU resumes normally on next frame.
+**Injection:** Wait for bus idle (ENA high), drive ENA/CLK/DATA via PIO SM1 for the frame, then release.
 
 ---
 
 ### Display
 
-The FIS display (also referred to as MFA — Multifunktionsanzeige) is a 64×88 pixel monochrome LCD. Navigation icons are stored as 1-bit 64×64 px arrays in `fis_nav_icons.h` and rendered using `GraphicFromArray(x, y, width, height, array, 0)` where the last parameter `0` indicates flash/PROGMEM storage.
+The FIS/MFA is a 64x88 pixel monochrome LCD. Nav icons are 1-bit 64x64 arrays in `fis_nav_icons.h`, rendered with `GraphicFromArray(x, y, width, height, array, 0)` (0 = flash/PROGMEM).
 
-> **Prerequisite:** The cluster must be coded with VCDS or OBDeleven (Module 17 — Instruments) to enable the navigation source. Without this coding the navigation menu slot in the FIS/MFA is not activated.
+**Prerequisite:** Code the cluster with VCDS or OBDeleven (Module 17 — Instruments) to enable the navigation source.

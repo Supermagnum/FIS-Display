@@ -20,7 +20,6 @@ target_link_libraries(pico_fis_bridge
     pico_stdlib
     pico_multicore
     hardware_pio
-    hardware_uart
     hardware_gpio
     hardware_dma
     hardware_sync
