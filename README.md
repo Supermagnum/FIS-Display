@@ -1,5 +1,10 @@
 # FIS-Display
-VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols
+VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
+
+The 3LB bus runs at approximately 2300 Hz (2.3 kHz). The 3LB is a synchronous serial bus with a clock of ~2300 Hz, and it sends 1 bit per clock cycle, so that's:
+~2300 bits per second (2.3 kbps).
+
+No circuit board has been made yet, but it will be.
 
 ## For Navit D-Bus Navigation + Media/Call Integration via Raspberry Pi Pico 2 W
 
