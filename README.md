@@ -281,12 +281,12 @@ bus without any relay or switch.
 ### 5.3 Level Shifting
 
 6× **BS170** N-channel MOSFET (TO-92, through-hole), one per 3LB GPIO line (3 RX + 3 TX).
-Each channel uses two 2.2 kΩ pull-up non inductive resistors — one to 3.3 V, one to 5 V.
+Each channel uses two 2.2 kΩ pull-up resistors — one to 3.3 V, one to 5 V. Use metal film or SMD thick/thin film resistors for low parasitic inductance; avoid wirewound types.
 
 | Part | DigiKey P/N | Qty |
 |------|-------------|-----|
 | BS170 MOSFET TO-92 THT | BS170-ND | 6 |
-| 10 kΩ resistor 0.25 W THT | — | 12 |
+| 2.2 kΩ resistor 0.25 W THT | — | 12 |
 
 BS170 pinout (flat face toward you, left to right): **Source — Gate — Drain**.
 

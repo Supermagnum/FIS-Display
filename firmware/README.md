@@ -35,7 +35,7 @@ The Pico auto-accepts all pairing requests — no user interaction on the Pico s
 
 ### Pinout (Pico 2 W)
 
-All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 10 kOhm pull-ups to each rail per channel.
+All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 2.2 kOhm pull-ups to each rail per channel. Use metal film or SMD thick/thin film resistors for low parasitic inductance; avoid wirewound types.
 
 **3LB RX (inputs):**
 
@@ -82,7 +82,7 @@ Same on USB CDC and Bluetooth SPP:
 
 ### Hardware notes
 
-**Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 10 kOhm pull-ups per channel (3.3 V and 5 V). See `BOM.md`.
+**Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 2.2 kOhm pull-ups per channel (3.3 V and 5 V), preferably metal film or SMD thick/thin film (avoid wirewound). See `BOM.md`.
 
 **Inline connectors:** JST PH 2.00 mm, 3-position; one pair each side (cluster and harness). PHR-3 housing, B3B-PH-K header, SPH-002T-P0.5S crimps (24–32 AWG).
 
