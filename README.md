@@ -277,7 +277,7 @@ USB CDC and Bluetooth SPP simultaneously.
 | DATA | Serial data | Master → Cluster |
 | CLK | Clock | Master → Cluster |
 
-Bus runs at **5 V logic**,  2500 kHz. Pico GPIO is 3.3 V — level shifting required on all lines.
+Bus runs at **5 V logic**,  2300 Hz,Pico GPIO is 3.3 V — level shifting required on all lines.
 
 **Bus arbitration:** Before transmitting, a master raises ENA to claim the bus. If ENA is already
 high it waits. The cluster acknowledges with a 100 µs pulse. The Pico and ECU safely share the
