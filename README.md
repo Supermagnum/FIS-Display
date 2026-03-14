@@ -4,13 +4,17 @@ VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 The 3LB bus runs at approximately 2300 Hz (2.3 kHz). The 3LB is a synchronous serial bus with a clock of ~2300 Hz, and it sends 1 bit per clock cycle, so that's:
 ~2300 bits per second (2.3 kbps).
 
-No circuit board has been made yet, but it will be.
+PCB and schematic have been designed in KiCad; design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing).
 
 ## For Navit D-Bus Navigation + Media/Call Integration via Raspberry Pi Pico 2 W
 
+> **Disclaimer:** The creator takes no responsibility for damages, immobile car, injury, or any other loss arising from the use of this project, its firmware, PCB design, or documentation. Use at your own risk.
+
 > **Note:** The Pico 2 W firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See `firmware/README.md` for build and flash instructions.
 
-PCB files and schematic diagram will be made soon.
+The firmware **supports CAN bus** (MCP2561 on GPIO 11/12) but it is **disabled by default**; enable with `CFG:CAN:1` when external CAN hardware is fitted.
+
+PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing) for what they are and how to use them.
 
 ---
 
@@ -36,6 +40,7 @@ PCB files and schematic diagram will be made soon.
   - [5.5 Inline PCB Connector](#55-inline-pcb-connector)
   - [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)
   - [5.7 Cluster Coding Prerequisite](#57-cluster-coding-prerequisite)
+  - [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing)
 - [6. The 3LB Protocol](#6-the-3lb-protocol)
   - [6.1 Open Source Libraries (Reference)](#61-open-source-libraries-reference)
   - [6.2 Display](#62-display)
@@ -62,6 +67,7 @@ This repository uses **no symlinks**; all paths are normal directories and files
 | [tools/](tools/) | Build/convert helpers. [tools/svg_to_fis_icon.py](tools/svg_to_fis_icon.py) converts SVG to the 64x64 1-bit C array format used by the firmware. |
 | [PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx](PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx) | VW/Audi PQ35/46 CAN matrix (reference). |
 | [PQ35_46_ACAN_Glossary_DE_EN.md](PQ35_46_ACAN_Glossary_DE_EN.md) | German–English translation table for the CAN matrix document. |
+| [pcb-files/](pcb-files/) | PCB design (KiCad) and [Gerber files](pcb-files/FIS-display/gerbers/) for manufacturing. See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing). |
 
 ---
 
@@ -93,16 +99,16 @@ This repository uses **no symlinks**; all paths are normal directories and files
                │                  │
                │ Middleman:       │
                │ serial -> 3LB;   │
-               │ optional: SPI -> │
-               │ MCP2515->CAN     │
+               │ optional: GPIO   │
+               │ 11/12 -> MCP2561 │
                └────────┬─────────┘
                         │
          ┌──────────────┼──────────────┐
          │              │              │
          ▼              │              ▼
  3LB (ENA/CLK/DATA)     │      Optional CAN (if enabled):
- via BS170 level        │      GPIO10-13 (SPI) -> MCP2515
- shifters (3.3V<->5V)   │      -> MCP2551 -> CAN-H/CAN-L
+ via BS170 level        │      GPIO 11 (TX), 12 (RX) ->
+ shifters (3.3V<->5V)   │      MCP2561 (TXD/RXD) -> CAN-H/CAN-L
          │              │              │
          ▼              │              ▼
  ┌──────────────────┐   │   ┌──────────────────────────┐
@@ -124,7 +130,7 @@ The Pico 2 W is a **pure middleman**. It has no navigation intelligence — it o
 the serial protocol from the host device and injects the translated frames onto the 3LB bus.
 All navigation logic stays on the host device running Navit. Optionally, when CAN is enabled
 (see [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)), the Pico can communicate with the
-vehicle comfort/infotainment CAN (100 kbit/s) via SPI to an MCP2515 and MCP2551 transceiver.
+vehicle comfort/infotainment CAN (100 kbit/s) via GPIO 11/12 to the MCP2561 (TXD/RXD only).
 
 The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico
 co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
@@ -315,7 +321,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
 
-**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN defaults to 0 (off).
+**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN bus is **supported by the firmware** but **disabled by default** (0).
 
 | Message | Effect |
 |---------|--------|
@@ -323,7 +329,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
 | `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading (N, NE, ...) on clock line 2 |
 | `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
-| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (default off). Requires external CAN hardware; not on current PCB. |
+| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (supported by firmware, **disabled by default**). Enable with 1 when external MCP2561 hardware is fitted. |
 
 ---
 
@@ -433,22 +439,41 @@ Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for
 | GPIO4 | FIS_PIN_CLK_OUT — PIO SM1 side-set |
 | GPIO5 | FIS_PIN_DATA_OUT — PIO SM1 out_base |
 
-**Optional CAN (when CAN enabled, SPI to MCP2515):** 3.3 V logic; no level shifter to MCP2551. See `firmware/fis_can.h` and firmware README.
+**Optional CAN (when CAN enabled, MCP2561):** The CAN controller used is the MCP2561. It has only 2 signal connections: TXD and RXD. 3.3 V logic; no level shifter needed. See `firmware/fis_can.h` and firmware README.
 
-| GPIO  | Signal        | Direction | Notes                    |
-|-------|---------------|-----------|---------------------------|
-| GPIO10 | FIS_CAN_PIN_SCK  | Out       | SPI clock to MCP2515      |
-| GPIO11 | FIS_CAN_PIN_MOSI | Out       | SPI MOSI to MCP2515 SI    |
-| GPIO12 | FIS_CAN_PIN_MISO | In        | SPI MISO from MCP2515 SO  |
-| GPIO13 | FIS_CAN_PIN_CS   | Out       | SPI chip select (active low) |
+| GPIO   | Signal         | Direction | Notes                    |
+|--------|----------------|-----------|---------------------------|
+| GPIO11 | FIS_CAN_PIN_TX | Out       | TX CAN to MCP2561 TXD     |
+| GPIO12 | FIS_CAN_PIN_RX | In        | RX CAN from MCP2561 RXD   |
 
-MCP2515 TXD/RXD connect to MCP2551 (TXD/RXD); MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s). For when to add a 120 ohm termination (tapped in middle vs replacing radio vs bench), see firmware README.
+MCP2561 CANH/CANL connect to vehicle comfort/infotainment CAN (100 kbit/s). For when to add a 120 ohm termination (tapped in middle vs replacing radio vs bench), see firmware README.
 
 ### 5.7 Cluster Coding Prerequisite
 
 Code the cluster using **VCDS** or **OBDeleven**, Module **17 — Instruments**:
 enable **"Navigation present"**. Without this the navigation slot in the FIS/MFA is inactive
 even if the Pico sends correct 3LB frames.
+
+### 5.8 Gerber files and PCB manufacturing
+
+**What are Gerber files?** Gerber is the standard format used by PCB manufacturers to produce printed circuit boards. Each file describes one layer of the board (copper, solder mask, silkscreen, etc.) as vector graphics. The manufacturer combines these files to fabricate and assemble the PCB. This repository provides Gerbers exported from the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/).
+
+**What is in this repo:** In [pcb-files/FIS-display/gerbers/](pcb-files/FIS-display/gerbers/) you will find:
+
+- **Copper layers:** `F_Cu.gbr` (top copper), `B_Cu.gbr` (bottom copper)
+- **Solder mask:** `F_Mask.gbr`, `B_Mask.gbr`
+- **Silkscreen:** `F_Silkscreen.gbr`, `B_Silkscreen.gbr`
+- **Solder paste (SMD stencil):** `F_Paste.gbr`, `B_Paste.gbr`
+- **Board outline:** `Edge_Cuts.gbr`
+- **Drill files:** `*.drl` (through-hole and non-plated drill data)
+
+**How to use them:**
+
+1. **Ordering PCBs:** Zip the contents of the `gerbers/` folder (all `.gbr` and `.drl` files, and the `.gbrjob` file if the manufacturer supports it) and upload the zip to a PCB fab (e.g. JLCPCB, PCBWay, OSH Park, or similar). Select the correct units (usually mm) and board thickness; the fab will use the Gerbers to produce the boards. Use the same BOM as in [firmware/BOM.md](firmware/BOM.md) for sourcing components.
+
+2. **Viewing without KiCad:** You can inspect the layers with a Gerber viewer (e.g. [GerberView](https://www.gerber-viewer.com/), or the online viewer many fabs provide) to check traces, pads, and outline before ordering.
+
+3. **Editing the design:** Open the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/) (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`) in [KiCad](https://www.kicad.org/). After any change, re-export Gerbers from KiCad (File → Plot, then generate drill files) and replace the files in `gerbers/` before ordering new boards.
 
 ---
 
@@ -477,9 +502,9 @@ GraphicFromArray(x, y, width, height, array, 0); // 0 = flash/PROGMEM
 
 ### 6.3 OEM radio: CAN time and display (reference only)
 
-The **original VW radio** set the instrument cluster time via the **CAN bus** (CAN-H / CAN-L), using time it received from the **FM RDS network**. This project does **not** use CAN; the Pico sets the FIS clock from GPS (Navit) over serial and 3LB only. The following is documented for reference.
+The **original VW radio** set the instrument cluster time via the **CAN bus** (CAN-H / CAN-L), using time it received from the **FM RDS network**. This project does **not** use CAN for the clock; the Pico sets the FIS clock from GPS (Navit) over serial and 3LB only. The following is documented for reference.
 
-**Not implemented:** The CAN messages below are **not** implemented in the Pico firmware and there is **no CAN transceiver or connector on the current PCB**. The FIS clock is driven solely by the serial protocol (NAV:TIME, timezone conversion, and 3LB injection) described earlier.
+**OEM messages not implemented:** The specific CAN messages below (mDiagnose_1, mEinheiten) are not implemented. The firmware does support optional CAN bus (MCP2561, disabled by default); the FIS clock is driven solely by the serial protocol (NAV:TIME, timezone conversion, and 3LB injection) described earlier.
 
 | Message | CAN ID | Length | Period | Description |
 |---------|--------|--------|--------|-------------|
@@ -512,7 +537,7 @@ Sent cyclically every 1000 ms.
 
 ### 6.4 Other potentially useful CAN messages (reference only)
 
-The following CAN frames are **not** implemented in the firmware or on the PCB. They are documented for reference if CAN is added later (e.g. to read cluster/vehicle state or adapt FIS output).
+The following CAN frames are not yet implemented in the firmware. They are documented for reference. The firmware supports optional CAN bus (MCP2561, disabled by default) for future use (e.g. to read cluster/vehicle state or adapt FIS output).
 
 **Useful for FIS/display**
 
@@ -640,7 +665,7 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 - Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`)
 - Reads `NAV:*`, `BT:*`, and `CFG:*` messages from both interfaces non-blocking
 - Updates shared `nav_state_t` and feature toggles (`fis_config_t`) under a critical section
-- When CAN is enabled (`CFG:CAN:1`), runs optional CAN poll (stub until external CAN hardware is used)
+- When CAN is enabled (`CFG:CAN:1`), runs optional CAN poll (firmware supports CAN; stub until MCP2561 driver is completed)
 
 **Core 1:**
 - Monitors 3LB ENA/CLK/DATA via PIO SM0 (RX sniffer)

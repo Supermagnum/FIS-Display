@@ -7,7 +7,7 @@
 
 /* CAN bus support: 0 = disabled (default), 1 = enabled.
  * Must be disabled by default. Enable only when external CAN hardware
- * (MCP2515 + MCP2551, 100 kbit/s for B6 comfort/infotainment) is fitted. */
+ * (MCP2561, 100 kbit/s for B6 comfort/infotainment) is fitted. */
 #define FIS_CAN_ENABLED_DEFAULT  0
 
 /* Clock screen toggles (default on). */

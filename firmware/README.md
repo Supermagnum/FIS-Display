@@ -49,16 +49,14 @@ All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V
 - `GPIO4` – `FIS_PIN_CLK_OUT` (CLK, PIO SM1 side-set, via level shifter)
 - `GPIO5` – `FIS_PIN_DATA_OUT` (DATA, PIO SM1 out_base, via level shifter)
 
-**Optional CAN (when enabled, SPI to MCP2515):** 3.3 V; no level shifter needed to MCP2551. See `fis_can.h` for `FIS_CAN_PIN_*`.
+**Optional CAN (when enabled, MCP2561):** The CAN controller used is the MCP2561. It has only 2 signal connections to the Pico: TXD and RXD. 3.3 V; no level shifter needed. See `fis_can.h` for `FIS_CAN_PIN_*`.
 
-| GPIO   | Symbol             | Direction | Function                    |
-|--------|--------------------|-----------|-----------------------------|
-| GPIO10 | FIS_CAN_PIN_SCK    | Out       | SPI clock to MCP2515        |
-| GPIO11 | FIS_CAN_PIN_MOSI   | Out       | SPI MOSI to MCP2515 SI      |
-| GPIO12 | FIS_CAN_PIN_MISO   | In        | SPI MISO from MCP2515 SO    |
-| GPIO13 | FIS_CAN_PIN_CS     | Out       | SPI chip select (active low) |
+| GPIO   | Symbol            | Direction | Function              |
+|--------|-------------------|-----------|-----------------------|
+| GPIO11 | FIS_CAN_PIN_TX    | Out       | TX CAN -> MCP2561 TXD |
+| GPIO12 | FIS_CAN_PIN_RX    | In        | RX CAN <- MCP2561 RXD |
 
-MCP2515 SI/SO/SCK/CS connect to the Pico; MCP2515 TXD/RXD connect to MCP2551 TXD/RXD; MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
+MCP2561 TXD connects to Pico GPIO 11; MCP2561 RXD connects to Pico GPIO 12. MCP2561 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
 
 **USB:** Pico USB CDC for Navit/host protocol; also 5 V power (VSYS). No 12 V on the PCB.
 
@@ -110,15 +108,13 @@ When `NAV:TIME` and optionally `NAV:POS` are received, the Pico looks up the tim
 
 CAN support is **off by default**; the default is defined in `firmware/fis_config_defaults.h` (`FIS_CAN_ENABLED_DEFAULT 0`). Enable at runtime with `CFG:CAN:1` only when external CAN hardware is fitted.
 
-**Bit rate:** The B6 comfort/infotainment CAN runs at **100 kbit/s**, not 500 kbit/s. Configure the MCP2515 bit timing for 100 kbit/s.
+**Bit rate:** The B6 comfort/infotainment CAN runs at **100 kbit/s**, not 500 kbit/s.
 
 **Hardware (when implementing):**
 
-- **MCP2515** — CAN controller (SPI to Pico). Set bit timing for 100 kbit/s.
-- **MCP2551-I/P (DIP-8)** — CAN transceiver; connects to CAN-H/CAN-L. The MCP2551 runs at 5 V on the bus side but its TXD/RXD logic pins are 3.3 V compatible, so **no level shifter** is needed between the Pico and the MCP2551 (unlike the 3LB side).
-- **8 MHz crystal** for the MCP2515, with two **22 pF** capacitors (typical).
+- **MCP2561** — CAN transceiver; only 2 signal connections to the Pico: **TXD** (GPIO 11) and **RXD** (GPIO 12). Connects to CAN-H/CAN-L on the bus side. Logic side is 3.3 V compatible; **no level shifter** needed (unlike the 3LB side).
 - **Termination:** See below; add 120 ohm non-inductive resistor only when your node is at a bus end.
-- **Decoupling capacitors** on supply pins of MCP2515 and MCP2551.
+- **Decoupling capacitors** on MCP2561 supply pins.
 
 **CAN termination resistors:**
 
@@ -153,7 +149,7 @@ firmware/
   nav_state.h          – nav_state_t, enums
   fis_config.h/.c           – Feature toggles (clock, ETA, compass, remain, CAN); set via CFG:* serial
   fis_config_defaults.h     – Build-time defaults; CAN disabled by default (FIS_CAN_ENABLED_DEFAULT 0)
-  fis_can.h/.c              – Optional CAN bus (default off); stub for future MCP2515 + MCP2551 (100 kbit/s)
+  fis_can.h/.c              – Optional CAN bus (default off); stub for future MCP2561 (GPIO 11 TX, GPIO 12 RX, 100 kbit/s)
   fis_bridge.c         – main(), dual-core, decision loop
   tz_table.h/.c        – Timezone bounding boxes and DST rules (flash)
   tz_lookup.h/.c       – Timezone lookup by lat/lon, DST and UTC→local

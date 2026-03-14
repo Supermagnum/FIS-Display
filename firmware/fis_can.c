@@ -6,8 +6,8 @@
 static bool s_can_initialized;
 
 static void fis_can_init_once(void) {
-    /* Placeholder for future CAN hardware init (e.g. MCP2515 SPI).
-     * No-op until external CAN controller support is implemented. */
+    /* Placeholder for future CAN hardware init (MCP2561 TXD/RXD on GPIO 11/12).
+     * No-op until external CAN support is implemented. */
     (void)0;
 }
 
