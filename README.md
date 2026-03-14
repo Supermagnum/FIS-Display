@@ -1,26 +1,47 @@
 # FIS-Display
 VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 
-The 3LB bus runs at approximately 2300 Hz (2.3 kHz). The 3LB is a synchronous serial bus with a clock of ~2300 Hz, and it sends 1 bit per clock cycle, so that's:
-~2300 bits per second (2.3 kbps).
+## Disclaimer
 
-PCB and schematic have been designed in KiCad; design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing).
+> The creator takes no responsibility for damages, immobile car, injury, or any other loss arising from the use of this project, its firmware, PCB design, or documentation. Use at your own risk.
 
-## For Navit D-Bus Navigation + Media/Call Integration via Raspberry Pi Pico 2 W
+## What this project does
 
-> **Disclaimer:** The creator takes no responsibility for damages, immobile car, injury, or any other loss arising from the use of this project, its firmware, PCB design, or documentation. Use at your own risk.
+This repository provides firmware, PCB design, and documentation to show Navit navigation (and optionally media, call, clock) on the VW Passat B6 (3C) FIS/MFA display. A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth. The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and clock. Optional CAN bus support (MCP2561, disabled by default) is included. The Pico is a middleman only; all navigation logic stays on the host.
 
-> **Note:** The Pico 2 W firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See `firmware/README.md` for build and flash instructions.
+PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files and Gerbers are in [pcb-files/](pcb-files/). See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing) for what they are and how to use them.
 
-The firmware **supports CAN bus** (MCP2561 on GPIO 11/12) but it is **disabled by default**; enable with `CFG:CAN:1` when external CAN hardware is fitted.
+> **Note:** The firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See `firmware/README.md` for build and flash instructions.
 
-PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing) for what they are and how to use them. Made with [KiCad](https://www.kicad.org/).
+## Gerber files and PCB manufacturing
+
+**What are Gerber files?** Gerber is the standard format used by PCB manufacturers to produce printed circuit boards. Each file describes one layer of the board (copper, solder mask, silkscreen, etc.) as vector graphics. The manufacturer combines these files to fabricate and assemble the PCB. This repository provides Gerbers exported from the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/).
+
+**What is in this repo:** In [pcb-files/FIS-display/gerbers/](pcb-files/FIS-display/gerbers/) you will find:
+
+- **Copper layers:** `F_Cu.gbr` (top copper), `B_Cu.gbr` (bottom copper)
+- **Solder mask:** `F_Mask.gbr`, `B_Mask.gbr`
+- **Silkscreen:** `F_Silkscreen.gbr`, `B_Silkscreen.gbr`
+- **Solder paste (SMD stencil):** `F_Paste.gbr`, `B_Paste.gbr`
+- **Board outline:** `Edge_Cuts.gbr`
+- **Drill files:** `*.drl` (through-hole and non-plated drill data)
+
+**How to use them:**
+
+1. **Ordering PCBs:** Zip the contents of the `gerbers/` folder (all `.gbr` and `.drl` files, and the `.gbrjob` file if the manufacturer supports it) and upload the zip to a PCB fab (e.g. JLCPCB, PCBWay, OSH Park, or similar). Select the correct units (usually mm) and board thickness; the fab will use the Gerbers to produce the boards. Use the same BOM as in [firmware/BOM.md](firmware/BOM.md) for sourcing components.
+
+2. **Viewing without KiCad:** You can inspect the layers with a Gerber viewer (e.g. [GerberView](https://www.gerber-viewer.com/), or the online viewer many fabs provide) to check traces, pads, and outline before ordering.
+
+3. **Editing the design:** Open the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/) (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`) in [KiCad](https://www.kicad.org/). After any change, re-export Gerbers from KiCad (File → Plot, then generate drill files) and replace the files in `gerbers/` before ordering new boards.
 
 ---
 
 ## Table of contents
 
-- [0. Project structure](#0-project-structure)
+- [Disclaimer](#disclaimer)
+- [What this project does](#what-this-project-does)
+- [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing)
+- [Project structure](#project-structure)
 - [1. System Overview](#1-system-overview)
 - [2. Host Device — Navit with D-Bus](#2-host-device--navit-with-d-bus)
   - [2.1 Supported Platforms](#21-supported-platforms)
@@ -40,7 +61,6 @@ PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber fi
   - [5.5 Inline PCB Connector](#55-inline-pcb-connector)
   - [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)
   - [5.7 Cluster Coding Prerequisite](#57-cluster-coding-prerequisite)
-  - [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing)
 - [6. The 3LB Protocol](#6-the-3lb-protocol)
   - [6.1 Open Source Libraries (Reference)](#61-open-source-libraries-reference)
   - [6.2 Display](#62-display)
@@ -52,7 +72,7 @@ PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber fi
 
 ---
 
-## 0. Project structure
+## Project structure
 
 This repository uses **no symlinks**; all paths are normal directories and files so that every system can clone and use it without symlink support.
 
@@ -67,7 +87,7 @@ This repository uses **no symlinks**; all paths are normal directories and files
 | [tools/](tools/) | Build/convert helpers. [tools/svg_to_fis_icon.py](tools/svg_to_fis_icon.py) converts SVG to the 64x64 1-bit C array format used by the firmware. |
 | [PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx](PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx) | VW/Audi PQ35/46 CAN matrix (reference). |
 | [PQ35_46_ACAN_Glossary_DE_EN.md](PQ35_46_ACAN_Glossary_DE_EN.md) | German–English translation table for the CAN matrix document. |
-| [pcb-files/](pcb-files/) | PCB design (KiCad) and [Gerber files](pcb-files/FIS-display/gerbers/) for manufacturing. See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing). |
+| [pcb-files/](pcb-files/) | PCB design (KiCad) and [Gerber files](pcb-files/FIS-display/gerbers/) for manufacturing. See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing). |
 
 ---
 
@@ -453,27 +473,6 @@ MCP2561 CANH/CANL connect to vehicle comfort/infotainment CAN (100 kbit/s). For 
 Code the cluster using **VCDS** or **OBDeleven**, Module **17 — Instruments**:
 enable **"Navigation present"**. Without this the navigation slot in the FIS/MFA is inactive
 even if the Pico sends correct 3LB frames.
-
-### 5.8 Gerber files and PCB manufacturing
-
-**What are Gerber files?** Gerber is the standard format used by PCB manufacturers to produce printed circuit boards. Each file describes one layer of the board (copper, solder mask, silkscreen, etc.) as vector graphics. The manufacturer combines these files to fabricate and assemble the PCB. This repository provides Gerbers exported from the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/).
-
-**What is in this repo:** In [pcb-files/FIS-display/gerbers/](pcb-files/FIS-display/gerbers/) you will find:
-
-- **Copper layers:** `F_Cu.gbr` (top copper), `B_Cu.gbr` (bottom copper)
-- **Solder mask:** `F_Mask.gbr`, `B_Mask.gbr`
-- **Silkscreen:** `F_Silkscreen.gbr`, `B_Silkscreen.gbr`
-- **Solder paste (SMD stencil):** `F_Paste.gbr`, `B_Paste.gbr`
-- **Board outline:** `Edge_Cuts.gbr`
-- **Drill files:** `*.drl` (through-hole and non-plated drill data)
-
-**How to use them:**
-
-1. **Ordering PCBs:** Zip the contents of the `gerbers/` folder (all `.gbr` and `.drl` files, and the `.gbrjob` file if the manufacturer supports it) and upload the zip to a PCB fab (e.g. JLCPCB, PCBWay, OSH Park, or similar). Select the correct units (usually mm) and board thickness; the fab will use the Gerbers to produce the boards. Use the same BOM as in [firmware/BOM.md](firmware/BOM.md) for sourcing components.
-
-2. **Viewing without KiCad:** You can inspect the layers with a Gerber viewer (e.g. [GerberView](https://www.gerber-viewer.com/), or the online viewer many fabs provide) to check traces, pads, and outline before ordering.
-
-3. **Editing the design:** Open the KiCad project in [pcb-files/FIS-display/](pcb-files/FIS-display/) (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`) in [KiCad](https://www.kicad.org/). After any change, re-export Gerbers from KiCad (File → Plot, then generate drill files) and replace the files in `gerbers/` before ordering new boards.
 
 ---
 
