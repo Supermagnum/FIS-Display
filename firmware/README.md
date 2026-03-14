@@ -72,11 +72,25 @@ Same on USB CDC and Bluetooth SPP:
 | `NAV:DIST:<metres>` | Distance to next turn |
 | `NAV:STREET:<name>` | Next street name (max 20 chars) |
 | `NAV:STATUS:<status>` | `routing`, `recalculating`, `no_route`, etc. |
-| `NAV:ETA:<unix_ts>` | Estimated arrival |
-| `NAV:REMAIN:<metres>` | Remaining distance |
+| `NAV:ETA:<unix_ts>` | Estimated arrival (Unix ts); converted to local time, shown as e.g. ARR14:32 on clock line 2 |
+| `NAV:REMAIN:<metres>` | Remaining distance to destination (Navit `destination_length`); shown on clock line 2 |
+| `NAV:HEAD:<degrees>` | Heading 0-360 (Navit `position_direction`); shown as compass (N, NE, E, ...) on clock line 2 |
+| `NAV:TIME:<iso8601>` | GPS time UTC (e.g. `2026-03-14T12:34:56Z`), from Navit `position_time_iso8601` |
+| `NAV:POS:<lat>,<lon>` | GPS position decimal degrees, from Navit `position_coord_geo` (for timezone lookup) |
 | `BT:TRACK:<info>` | Media track info |
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
+
+When `NAV:TIME` and optionally `NAV:POS` are received, the Pico looks up the timezone from a compact bounding-box table stored in flash, computes DST transitions algorithmically (EU rule: last Sunday March/October at 01:00 UTC), converts UTC to local time, and can inject a clock display on the FIS when no nav/media/call is being shown. ETA (Navit `eta`, Unix timestamp) is converted to local time and shown on clock line 2 (e.g. ARR14:32). No network, no OS timezone database, no user configuration.
+
+**Feature toggles:** Send `CFG:<name>:0` or `CFG:<name>:1`. All default to 1 (on).
+
+| Message | Effect |
+|---------|--------|
+| `CFG:CLOCK:0` / `CFG:CLOCK:1` | Show clock (time from GPS); 0 = do not show clock on FIS |
+| `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
+| `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading on clock line 2 |
+| `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
 
 ---
 
@@ -98,35 +112,63 @@ firmware/
   fis_3lb_rx.pio       – PIO SM0: 3LB RX (sniffer)
   fis_3lb_tx.pio       – PIO SM1: 3LB TX (inject)
   fis_rx.h/.c          – Bus idle detection (ENA)
-  fis_display.h/.c     – Frame build and inject (nav/media/call)
-  serial_parser.h/.c   – USB CDC and Bluetooth SPP line parser
+  fis_display.h/.c     – Frame build and inject (nav/media/call/clock)
+  serial_parser.h/.c   – USB CDC and Bluetooth SPP line parser (NAV/BT/CFG)
   nav_state.h          – nav_state_t, enums
+  fis_config.h/.c      – Feature toggles (clock, ETA, compass, remain); set via CFG:* serial
   fis_bridge.c         – main(), dual-core, decision loop
+  tz_table.h/.c        – Timezone bounding boxes and DST rules (flash)
+  tz_lookup.h/.c       – Timezone lookup by lat/lon, DST and UTC→local
+  local_time.h/.c      – Parse ISO8601, format local time and ETA for FIS
   fis_nav_icons.h      – Pre-generated 1-bit nav icon arrays (64x64 px)
 ```
 
 ---
 
-### Build
+### Build and flash
 
-1. Install the Raspberry Pi Pico SDK (Pico 2 W supported).
-2. From `firmware/`:
+**Prerequisites**
+
+- Raspberry Pi Pico SDK installed and `PICO_SDK_PATH` set (or SDK at default location, e.g. `~/pico/pico-sdk`).
+- CMake 3.13+, ARM GCC toolchain (e.g. `arm-none-eabi-gcc`). The Pico SDK install guide covers toolchain setup.
+
+**Build**
+
+From the project root:
 
 ```bash
-mkdir build && cd build
+cd firmware
+mkdir -p build && cd build
 cmake ..
 make -j4
 ```
 
-3. Flash `pico_fis_bridge.uf2` via BOOTSEL (USB mass storage).
+This produces `pico_fis_bridge.uf2` in `firmware/build/`.
+
+**Flash (UF2 via BOOTSEL)**
+
+1. Power off the Pico 2 W (unplug USB if it is the only power source).
+2. Put the board into BOOTSEL (bootloader) mode:
+   - Hold the **BOOTSEL** button on the Pico 2 W.
+   - While holding it, connect the USB cable (or apply power via VSYS).
+   - Release **BOOTSEL** after the board is connected.
+3. The board should enumerate as a USB mass storage device (e.g. `RPI-RP2` on Linux/macOS, or a new drive letter on Windows).
+4. Copy the UF2 file onto that volume:
+   - **Linux/macOS:** `cp pico_fis_bridge.uf2 /media/$USER/RPI-RP2/` (path may vary; check `dmesg` or your file manager).
+   - **Windows:** Drag `pico_fis_bridge.uf2` onto the `RPI-RP2` drive in Explorer.
+5. The device will automatically reset and run the new firmware. The mass storage device will disappear and the Pico will appear as a USB serial (CDC) port at 115200 baud.
+
+**Alternative: picoprobe / OpenOCD**
+
+If you use a Pico as a probe or another debugger, you can flash the `.elf` or `.uf2` with OpenOCD or `picotool` instead of BOOTSEL. The build output in `build/` includes `pico_fis_bridge.elf` and `pico_fis_bridge.uf2`.
 
 ---
 
 ### Runtime behaviour
 
-**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses NAV/BT messages, updates shared `nav_state_t` under a critical section.
+**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses `NAV:*`, `BT:*`, and `CFG:*` messages, updates shared `nav_state_t` and `fis_config_t` under a critical section.
 
-**Core 1:** Runs the 3LB loop: monitors ENA for idle, snapshots `nav_state_t`, injects call frame, nav frame, or media frame as appropriate; otherwise leaves bus to the ECU.
+**Core 1:** Runs the 3LB loop: monitors ENA for idle, snapshots `nav_state_t` and `fis_config_t`, then injects (in order of priority) call frame, nav frame, media frame, or clock frame (if clock enabled and GPS time available); otherwise leaves bus to the ECU.
 
 **Injection:** Wait for bus idle (ENA high), drive ENA/CLK/DATA via PIO SM1 for the frame, then release.
 

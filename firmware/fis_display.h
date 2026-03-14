@@ -9,6 +9,7 @@
  #include "hardware/pio.h"
 
  #include "nav_state.h"
+ #include "fis_config.h"
 
  // Fixed pin assignment for the TX side.
  #define FIS_PIN_ENA_OUT  3u
@@ -24,6 +25,7 @@
  void fis_display_inject_nav(const nav_state_t *state);
  void fis_display_inject_media(const nav_state_t *state);
  void fis_display_inject_call(const nav_state_t *state);
+ void fis_display_inject_clock(const nav_state_t *state, const fis_config_t *config);
 
  #endif
 

@@ -8,9 +8,13 @@ pico_sdk_init()
 
 add_executable(pico_fis_bridge
     fis_bridge.c
+    fis_config.c
     fis_rx.c
     fis_display.c
     serial_parser.c
+    tz_table.c
+    tz_lookup.c
+    local_time.c
 )
 
 pico_generate_pio_header(pico_fis_bridge ${CMAKE_CURRENT_LIST_DIR}/fis_3lb_rx.pio)

@@ -6,16 +6,21 @@
  #include "hardware/pio.h"
 
  #include "nav_state.h"
+ #include "fis_config.h"
  #include "fis_rx.h"
  #include "fis_display.h"
  #include "serial_parser.h"
 
  static nav_state_t        g_nav_state;
+ static fis_config_t       g_fis_config;
  static critical_section_t g_nav_lock;
 
  static void nav_state_init_struct(nav_state_t *s) {
      memset(s, 0, sizeof *s);
      s->status = NAV_STATUS_NO_ROUTE;
+     s->lat_centideg = NAV_POS_INVALID;
+     s->lon_centideg = NAV_POS_INVALID;
+     s->heading_deg = NAV_HEADING_INVALID;
  }
 
  static void nav_state_copy(nav_state_t *dst, const nav_state_t *src) {
@@ -31,6 +36,10 @@
      return s->media[0] != '\0';
  }
 
+ static bool has_clock(const nav_state_t *s, const fis_config_t *cfg) {
+     return cfg->show_clock && s->position_time_iso8601[0] != '\0';
+ }
+
  static void core1_3lb_loop(void) {
      nav_state_t local_state;
 
@@ -43,9 +52,10 @@
              continue;
          }
 
-         // Snapshot navigation state under lock.
+         // Snapshot navigation state and config under lock.
          critical_section_enter_blocking(&g_nav_lock);
          nav_state_copy(&local_state, &g_nav_state);
+         fis_config_t local_config = g_fis_config;
          critical_section_exit(&g_nav_lock);
 
          // Decide what, if anything, to inject.
@@ -55,6 +65,8 @@
              fis_display_inject_nav(&local_state);
          } else if (has_media(&local_state)) {
              fis_display_inject_media(&local_state);
+         } else if (has_clock(&local_state, &local_config)) {
+             fis_display_inject_clock(&local_state, &local_config);
          }
 
          // Brief pause to avoid saturating the bus with back-to-back frames.
@@ -64,6 +76,7 @@
 
  int main(void) {
      nav_state_init_struct(&g_nav_state);
+     fis_config_set_defaults(&g_fis_config);
      critical_section_init(&g_nav_lock);
 
      // Initialise serial I/O (USB CDC and Bluetooth SPP via BTstack).
@@ -76,9 +89,9 @@
      // Launch core 1 to run the 3LB loop.
      multicore_launch_core1(core1_3lb_loop);
 
-     // Core 0: handle serial input and update nav_state.
+     // Core 0: handle serial input and update nav_state and config.
      for (;;) {
-         serial_parser_poll(&g_nav_state, &g_nav_lock);
+         serial_parser_poll(&g_nav_state, &g_fis_config, &g_nav_lock);
          sleep_ms(5);
      }
  }

@@ -8,6 +8,10 @@ No circuit board has been made yet, but it will be.
 
 ## For Navit D-Bus Navigation + Media/Call Integration via Raspberry Pi Pico 2 W
 
+> **Note:** The Pico 2 W firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See `firmware/README.md` for build and flash instructions.
+
+PCB files and schematic diagram will be made soon.
+
 ---
 
 ## 1. System Overview
@@ -107,8 +111,11 @@ Enable D-Bus in `navit.xml`:
 | `navigation_street_name_systematic` | Route number |
 | `navigation_status` | Routing state |
 | `position_speed` | Current speed |
-| `eta` | Estimated arrival (Unix timestamp) |
-| `destination_length` | Remaining distance (m) |
+| `eta` | Estimated arrival (Unix timestamp); sent as `NAV:ETA`, shown in local time on FIS clock line |
+| `destination_length` | Remaining distance to destination (m); sent as `NAV:REMAIN`, shown on FIS clock line |
+| `position_direction` | Heading in degrees (0-360); sent as `NAV:HEAD`, shown as compass (N, NE, E, ...) on FIS |
+| `position_time_iso8601` | GPS time UTC, format `YYYY-MM-DDTHH:MM:SSZ` (for FIS clock) |
+| `position_coord_geo` | GPS latitude/longitude (for timezone lookup; vehicle attribute) |
 
 ### 2.4 Navigation Status Values
 
@@ -152,7 +159,10 @@ WATCHED = [
     "navigation_street_name",
     "navigation_status",
     "eta",
-    "destination_length",
+    "destination_length",      # remaining distance (m) -> NAV:REMAIN, shown on FIS clock line
+    "position_direction",      # heading 0-360 -> NAV:HEAD, shown as compass (N, NE, E, ...)
+    "position_time_iso8601",   # UTC GPS time for FIS clock (format YYYY-MM-DDTHH:MM:SSZ)
+    "position_coord_geo",      # lat/lon for timezone lookup (vehicle attribute)
 ]
 
 MANEUVER_MAP = {
@@ -202,6 +212,17 @@ class NavitBridge:
             msg = f"NAV:ETA:{int(value)}\n"
         elif attr_name == "destination_length":
             msg = f"NAV:REMAIN:{int(value)}\n"
+        elif attr_name == "position_direction":
+            msg = f"NAV:HEAD:{int(value)}\n"
+        elif attr_name == "position_time_iso8601":
+            msg = f"NAV:TIME:{str(value)}\n"
+        elif attr_name == "position_coord_geo":
+            # value is typically (lng, lat) or struct; adapt to your D-Bus binding
+            try:
+                lat, lon = float(value[1]), float(value[0])  # (lng, lat) from Navit
+                msg = f"NAV:POS:{lat:.4f},{lon:.4f}\n"
+            except (IndexError, TypeError, ValueError):
+                pass
         if msg:
             self.ser.write(msg.encode())
 
@@ -224,11 +245,23 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `NAV:DIST:<metres>` | Distance to next turn |
 | `NAV:STREET:<n>` | Next street name (max 20 chars) |
 | `NAV:STATUS:<status>` | Navit routing status |
-| `NAV:ETA:<unix_ts>` | Estimated arrival time |
-| `NAV:REMAIN:<metres>` | Total remaining distance |
+| `NAV:ETA:<unix_ts>` | Estimated arrival (Unix timestamp); converted to local time and shown on clock line 2 as e.g. ARR14:32 |
+| `NAV:REMAIN:<metres>` | Remaining distance to destination (from Navit `destination_length`); shown on clock line |
+| `NAV:HEAD:<degrees>` | Heading 0-360 (from Navit `position_direction`); shown as compass on clock line |
+| `NAV:TIME:<iso8601>` | GPS time UTC, e.g. `2026-03-14T12:34:56Z` (from Navit `position_time_iso8601`) |
+| `NAV:POS:<lat>,<lon>` | GPS position in decimal degrees (from Navit `position_coord_geo`), e.g. `59.91,10.75` |
 | `BT:TRACK:<info>` | Media track info from head unit |
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
+
+**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. All default to 1 (on).
+
+| Message | Effect |
+|---------|--------|
+| `CFG:CLOCK:0` / `CFG:CLOCK:1` | Clock (time from GPS, set automatically); 0 = do not show clock on FIS |
+| `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
+| `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading (N, NE, ...) on clock line 2 |
+| `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
 
 ---
 
@@ -369,22 +402,180 @@ stored in flash (`firmware/fis_nav_icons.h`) and rendered with:
 GraphicFromArray(x, y, width, height, array, 0); // 0 = flash/PROGMEM
 ```
 
+### 6.3 OEM radio: CAN time and display (reference only)
+
+The **original VW radio** set the instrument cluster time via the **CAN bus** (CAN-H / CAN-L), using time it received from the **FM RDS network**. This project does **not** use CAN; the Pico sets the FIS clock from GPS (Navit) over serial and 3LB only. The following is documented for reference.
+
+**Not implemented:** The CAN messages below are **not** implemented in the Pico firmware and there is **no CAN transceiver or connector on the current PCB**. The FIS clock is driven solely by the serial protocol (NAV:TIME, timezone conversion, and 3LB injection) described earlier.
+
+| Message | CAN ID | Length | Period | Description |
+|---------|--------|--------|--------|-------------|
+| **mDiagnose_1** | 0x7D0 (2000) | 8 bytes | 1000 ms | Date and time from radio (e.g. RDS). |
+| **mEinheiten** | 0x60E (1550) | 2 bytes | 1000 ms | Display format flags (date/clock on-off, day of week). |
+
+**mDiagnose_1 (0x7D0) — date and time**
+
+| Signal | Byte | Start bit | Length | Range | Unit |
+|--------|------|------------|--------|-------|------|
+| DI1_Jahr (Year) | 4 | 4 | 7 bits | 0–127 → 2000–2127 | Year |
+| DI1_Monat (Month) | 5 | 3 | 4 bits | 1–12 | Month |
+| DI1_Tag (Day) | 5 | 7 | 5 bits | 0–31 | Day |
+| DI1_Stunde (Hour) | 6 | 4 | 5 bits | 0–23 | Hours |
+| DI1_Minute (Minute) | 7 | 1 | 6 bits | 0–59 | Minutes |
+| DI1_Sekunde (Second) | 7 | 7 | 6 bits | 0–59 | Seconds |
+| DI1_Zeit_alt (time stale) | 8 | 7 | 1 bit | — | 1 = time old/stale |
+
+Sent cyclically every 1000 ms.
+
+**mEinheiten (0x60E) — display format**
+
+| Signal | Byte | Bit(s) | Description |
+|--------|------|--------|-------------|
+| EH1_Datum_Anzeige | 1 | 6 | Date display on/off |
+| EH1_Uhr_Anzeige | 1 | 7 | Clock display on/off |
+| EH1_Wochentag | 2 | 4–6 | Day of week |
+
+Sent cyclically every 1000 ms.
+
+### 6.4 Other potentially useful CAN messages (reference only)
+
+The following CAN frames are **not** implemented in the firmware or on the PCB. They are documented for reference if CAN is added later (e.g. to read cluster/vehicle state or adapt FIS output).
+
+**Useful for FIS/display**
+
+- **mKombi_1 (0x320)** — sent by the cluster, 10 ms cyclic: KO1_kmh (vehicle speed, bytes 4–5, 15 bits), KO1_angez_kmh (displayed speed including offset, bytes 6–7), KO1_Tankinhalt (fuel level), KO1_Warn_Tank (low fuel, 7 L), KO1_Oeldruck (oil pressure warning), KO1_Kuehlmittel (coolant warning), KO1_Vorgluehen (glow plug, diesel).
+- **mKombi_2 (0x420)** — from cluster, 200 ms cyclic: KO2_gef_Auss_T / KO2_Aussen_T (outside temperature), KO2_Bel_Displ (display brightness %, for dimming FIS at night), KO2_Fehlereintr (fault stored).
+- **mEinheiten (0x60E)** — units: EH1_Uhr_Anzeige (12h/24h), EH1_Datum_Anzeige (EU/US date), EH1_Wochentag (day of week 1=Mon…7=Sun), EH1_Einh_Temp (°C/°F), EH1_Einh_Strck (km/miles).
+
+**Situational awareness**
+
+- **mGate_Komf_1 (0x390)**, 100 ms: GK1_Rueckfahr (reverse), GK1_Warnblk_Status (hazards), GK1_Bremslicht, GK1_Abblendlicht / GK1_Fernlicht (headlights/high beam), GK1_Wischer_vorn (wipers), GK1_SH_laeuft (aux heater), door status (driver, passenger, rear L/R).
+- **mZAS_1 (0x572)** — ignition: ZA1_Klemme_15 (ignition on), ZA1_Klemme_50 (starter), ZA1_S_Kontakt (key in).
+- **mClima_1 (0x5E0)** — CL1_Kompressor (A/C on), CL1_Hecksch / CL1_Frontsch (rear/front screen heat), CL1_Restwaerme (residual heat).
+
+**Parking (if equipped)**
+
+- **Parkhilfe_01 (0x497)** — PDC: obstacle front/rear, beeper active, audio ducking request, system state.
+
+**Other**
+
+- **mKombi_3 (0x520)** — KO3_Kilometer (odometer), KO3_Standzeit (parked duration).
+- **mSysteminfo_1 (0x5D0)** — SY1_Fzg_Derivat (body style), SY1_Notbrems_Status (emergency braking).
+
+**Signal reference tables**
+
+*mKombi_1 — 0x320 (from cluster, 10 ms cyclic)*
+
+| Signal | Byte | Start bit | Len | Raw range | Physical | Unit | Scale |
+|--------|------|-----------|-----|-----------|----------|------|-------|
+| KO1_kmh | 4 | 1 | 15 | 0–32600 | 0–326 | km/h | 0.01 |
+| KO1_angez_kmh | 6 | 6 | 10 | 0–1018 | 0–325.76 | km/h | 0.32 |
+| KO1_Tankinhalt | 3 | 0 | 7 | 0–126 | 0–126 | litres | 1 |
+| KO1_Warn_Tank | 1 | 6 | 1 | — | 1 = warning (7 L) | — | — |
+| KO1_Oeldruck | 1 | 2 | 1 | — | 1 = low pressure | — | — |
+| KO1_Kuehlmittel | 1 | 4 | 1 | — | 1 = coolant low | — | — |
+| KO1_Vorgluehen | 1 | 7 | 1 | — | 1 = glow plug on | — | — |
+
+KO1_angez_kmh spans bytes 6–7 (10 bits from bit 6); KO1_kmh spans bytes 4–5 (15 bits from bit 1). Little-endian.
+
+*mKombi_2 — 0x420 (from cluster, 200 ms cyclic)*
+
+| Signal | Byte | Start bit | Len | Raw range | Physical | Unit | Offset | Scale |
+|--------|------|-----------|-----|-----------|----------|------|--------|-------|
+| KO2_gef_Auss_T | 2 | 0 | 8 | 0–254 | −50 to +77 | °C | −50 | 0.5 |
+| KO2_Aussen_T | 3 | 0 | 8 | 0–254 | −50 to +77 | °C | −50 | 0.5 |
+| KO2_Bel_Displ | 6 | 0 | 7 | 0–100 | 0–100 | % | 0 | 1 |
+| KO2_Fehlereintr | 1 | 7 | 1 | — | 1 = fault stored | — | — | — |
+
+Temperature: °C = (raw × 0.5) − 50. Raw 0xFF = invalid.
+
+*mEinheiten — 0x60E (1000 ms cyclic)*
+
+| Signal | Byte | Start bit | Len | Values |
+|--------|------|-----------|-----|--------|
+| EH1_Uhr_Anzeige | 1 | 7 | 1 | 0 = 24 h, 1 = 12 h |
+| EH1_Datum_Anzeige | 1 | 6 | 1 | 0 = EU (DD.MM), 1 = US (MM/DD) |
+| EH1_Wochentag | 2 | 4 | 3 | 0 = init, 1 = Mon … 7 = Sun |
+| EH1_Einh_Temp | 1 | 1 | 1 | 0 = °C, 1 = °F |
+| EH1_Einh_Strck | 1 | 0 | 1 | 0 = km, 1 = miles |
+
+*mGate_Komf_1 — 0x390 (100 ms cyclic)*
+
+| Signal | Byte | Start bit | Len | Notes |
+|--------|------|-----------|-----|-------|
+| GK1_Rueckfahr | 4 | 4 | 1 | 1 = reverse |
+| GK1_Warnblk_Status | 7 | 7 | 1 | 1 = hazards on |
+| GK1_Bremslicht | 8 | 3 | 1 | 1 = brake light on |
+| GK1_Abblendlicht | 7 | 0 | 1 | 1 = dipped beam |
+| GK1_Fernlicht | 7 | 1 | 1 | 1 = high beam |
+| GK1_Wischer_vorn | 7 | 2 | 1 | 1 = wipers moving |
+| GK1_SH_laeuft | 8 | 0 | 1 | 1 = aux heater on |
+| GK1_Fa_Tuerkont | 3 | 0 | 1 | Driver door |
+| BSK_BT_geoeffnet | 6 | 1 | 1 | Passenger door |
+| BSK_HL_geoeffnet | 4 | 2 | 1 | Rear left door |
+| BSK_HR_geoeffnet | 4 | 3 | 1 | Rear right door |
+
+*mZAS_1 — 0x572 (ignition/key)*
+
+| Signal | Byte | Start bit | Len | Notes |
+|--------|------|-----------|-----|-------|
+| ZA1_S_Kontakt | 1 | 0 | 1 | 1 = key inserted |
+| ZA1_Klemme_15 | 1 | 1 | 1 | 1 = ignition on |
+| ZA1_Klemme_50 | 1 | 3 | 1 | 1 = starter engaged |
+
+*mClima_1 — 0x5E0*
+
+| Signal | Byte | Start bit | Len | Notes |
+|--------|------|-----------|-----|-------|
+| CL1_Kompressor | 1 | 4 | 1 | 1 = A/C on |
+| CL1_Hecksch | 1 | 2 | 1 | 1 = rear screen heat |
+| CL1_Frontsch | 1 | 3 | 1 | 1 = front screen heat |
+| CL1_Restwaerme | 7 | 3 | 1 | 1 = residual heat on |
+
+*Parkhilfe_01 — 0x497 (if equipped)*
+
+| Signal | Byte | Start bit | Len | Notes |
+|--------|------|-----------|-----|-------|
+| PH_Opt_Anz_V_Hindernis | 3 | 2 | 1 | 1 = obstacle front |
+| PH_Opt_Anz_H_Hindernis | 3 | 3 | 1 | 1 = obstacle rear |
+| PH_Tongeber_V_aktiv | 3 | 4 | 1 | 1 = PDC beep front |
+| PH_Tongeber_H_aktiv | 3 | 5 | 1 | 1 = PDC beep rear |
+| PH_Anf_Audioabsenkung | 3 | 7 | 1 | 1 = audio duck request |
+| PH_Systemzustand | 8 | 2 | 3 | 0 = off, 1 = reverse, 2 = front, 3 = both, 7 = fault |
+
+*mKombi_3 — 0x520*
+
+| Signal | Byte | Start bit | Len | Raw range | Physical | Unit | Scale |
+|--------|------|-----------|-----|-----------|----------|------|-------|
+| KO3_Kilometer | 6 | 0 | 20 | 0–1048575 | 0–1048575 | km | 1 |
+| KO3_Standzeit | 4 | 0 | 15 | 0–32767 | 0–131068 | seconds | ×4 |
+
+KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
+
+*mSysteminfo_1 — 0x5D0*
+
+| Signal | Byte | Start bit | Len | Values |
+|--------|------|-----------|-----|--------|
+| SY1_Fzg_Derivat | 3 | 0 | 4 | 0 = saloon, 1 = notchback, 2 = estate, 3 = hatchback, 4 = coupé, 5 = cabriolet, 6 = offroad, 9 = other |
+| SY1_Notbrems_Status | 8 | 0 | 1 | 1 = emergency braking |
+
 ---
 
 ## 7. Firmware Runtime Behaviour
 
 **Core 0:**
 - Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`)
-- Reads `NAV:*` and `BT:*` messages from both interfaces non-blocking
-- Updates shared `nav_state_t` protected by a mutex
+- Reads `NAV:*`, `BT:*`, and `CFG:*` messages from both interfaces non-blocking
+- Updates shared `nav_state_t` and feature toggles (`fis_config_t`) under a critical section
 
 **Core 1:**
 - Monitors 3LB ENA/CLK/DATA via PIO SM0 (RX sniffer)
 - Detects idle gaps between ECU transmissions
-- When bus is idle, checks `nav_state_t` and injects:
+- When bus is idle, checks `nav_state_t` and feature toggles (`fis_config_t`), then injects:
   - Active call → call frame (highest priority)
   - Active navigation (`routing` / `recalculating`) → nav icon + street name + distance
   - Media info present, no nav → track name frame
+  - Clock enabled and GPS time available → clock frame (local time on line 1; line 2: remain / ETA / compass / date per toggles)
   - Otherwise → do nothing; ECU frames reach FIS/MFA unmodified
 
 **Injection:** Wait ENA LOW (bus idle) → raise ENA → transmit via PIO SM1 → lower ENA → ECU resumes.
