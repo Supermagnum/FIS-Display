@@ -62,6 +62,10 @@
          if (local_state.call_active) {
              fis_display_inject_call(&local_state);
          } else if (should_inject_nav(&local_state)) {
+             int icon_idx = fis_maneuver_to_icon_index(local_state.maneuver);
+             if (icon_idx >= 0) {
+                 fis_display_inject_icon((uint8_t)icon_idx);
+             }
              fis_display_inject_nav(&local_state);
          } else if (has_media(&local_state)) {
              fis_display_inject_media(&local_state);

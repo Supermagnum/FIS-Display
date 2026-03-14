@@ -127,36 +127,106 @@ firmware/
 
 ### Build and flash
 
-**Prerequisites**
+**Prerequisites (all platforms)**
 
-- Raspberry Pi Pico SDK installed and `PICO_SDK_PATH` set (or SDK at default location, e.g. `~/pico/pico-sdk`).
-- CMake 3.13+, ARM GCC toolchain (e.g. `arm-none-eabi-gcc`). The Pico SDK install guide covers toolchain setup.
+- Raspberry Pi Pico SDK installed and `PICO_SDK_PATH` set (or SDK at default location).
+- CMake 3.13+ and ARM GCC toolchain (`arm-none-eabi-gcc`). See [Raspberry Pi Pico SDK documentation](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) for setup.
 
-**Build**
+**Build (all platforms)**
 
 From the project root:
 
 ```bash
 cd firmware
 mkdir -p build && cd build
-cmake ..
+cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4
 ```
 
-This produces `pico_fis_bridge.uf2` in `firmware/build/`.
+This produces `pico_fis_bridge.uf2` in `firmware/build/`. Use the same steps for the display-test firmware from `firmware-display-test/` (output: `fis_display_test.uf2`).
 
-**Flash (UF2 via BOOTSEL)**
+---
+
+#### Flashing (UF2 via BOOTSEL) — general
 
 1. Power off the Pico 2 W (unplug USB if it is the only power source).
 2. Put the board into BOOTSEL (bootloader) mode:
    - Hold the **BOOTSEL** button on the Pico 2 W.
    - While holding it, connect the USB cable (or apply power via VSYS).
    - Release **BOOTSEL** after the board is connected.
-3. The board should enumerate as a USB mass storage device (e.g. `RPI-RP2` on Linux/macOS, or a new drive letter on Windows).
-4. Copy the UF2 file onto that volume:
-   - **Linux/macOS:** `cp pico_fis_bridge.uf2 /media/$USER/RPI-RP2/` (path may vary; check `dmesg` or your file manager).
-   - **Windows:** Drag `pico_fis_bridge.uf2` onto the `RPI-RP2` drive in Explorer.
-5. The device will automatically reset and run the new firmware. The mass storage device will disappear and the Pico will appear as a USB serial (CDC) port at 115200 baud.
+3. The board enumerates as a USB mass storage device. Copy the `.uf2` file onto that volume (see platform steps below).
+4. The device resets automatically and runs the new firmware. The mass storage volume disappears and the Pico appears as a USB serial (CDC) port at 115200 baud.
+
+---
+
+#### Windows
+
+**Option A: Build in WSL, flash from Windows**
+
+1. Build the firmware inside WSL (e.g. `cd /mnt/c/Users/YourName/FIS-Display/firmware`, then `mkdir build && cd build`, `cmake ..`, `make`). The UF2 is at `firmware/build/pico_fis_bridge.uf2`.
+2. In Windows Explorer, open the project folder (e.g. `C:\Users\YourName\FIS-Display\firmware\build\`).
+3. Put the Pico 2 W into BOOTSEL (hold BOOTSEL, plug USB, release). A new removable drive appears (e.g. **RPI-RP2** or a drive letter like **D:** or **E:**).
+4. Copy the UF2 file onto the drive:
+   - Drag `pico_fis_bridge.uf2` from Explorer and drop it onto the **RPI-RP2** (or the assigned drive) window, or
+   - In Command Prompt: `copy pico_fis_bridge.uf2 D:\` (replace `D:` with the actual drive letter; use **This PC** in Explorer to see the correct letter).
+5. The Pico resets and runs the new firmware. The drive disappears; use a serial terminal (e.g. PuTTY, 115200 baud) on the new COM port to talk to the firmware.
+
+**Option B: Build natively on Windows**
+
+1. Install [MSYS2](https://www.msys2.org/) or use the official Pico Windows toolchain. Install CMake and `arm-none-eabi-gcc` (e.g. via MSYS2: `pacman -S mingw-w64-ucrt-x86_64-arm-none-eabi-gcc cmake make`). Clone the Pico SDK and set `PICO_SDK_PATH`.
+2. In a MSYS2 UCRT64 (or similar) shell: `cd firmware`, `mkdir build`, `cd build`, `cmake .. -G "MinGW Makefiles" -DCMAKE_C_COMPILER=arm-none-eabi-gcc`, `make`. The UF2 is in `build\`.
+3. Follow steps 3–5 from Option A: BOOTSEL, then copy `pico_fis_bridge.uf2` onto the **RPI-RP2** drive in Explorer (or via `copy` to the correct drive letter).
+
+**Finding the drive letter:** Open **This PC** (or **File Explorer**). After entering BOOTSEL, a new removable disk **RPI-RP2** appears; note its letter (e.g. **E:**). If it does not appear, try another USB cable/port (data-capable); re-enter BOOTSEL.
+
+---
+
+#### macOS
+
+**Prerequisites**
+
+- Xcode Command Line Tools (for `make`, etc.): `xcode-select --install`
+- Homebrew: [brew.sh](https://brew.sh)
+- ARM toolchain and CMake: `brew install cmake arm-none-eabi-gcc`
+- Pico SDK: clone [pico-sdk](https://github.com/raspberrypi/pico-sdk) and set `PICO_SDK_PATH` to the clone path (e.g. in `~/.zshrc`: `export PICO_SDK_PATH=~/pico/pico-sdk`).
+
+**Build**
+
+```bash
+cd firmware
+mkdir -p build && cd build
+cmake .. -DPICO_SDK_PATH=$PICO_SDK_PATH
+make -j4
+```
+
+The UF2 is at `firmware/build/pico_fis_bridge.uf2`.
+
+**Flash**
+
+1. Put the Pico 2 W into BOOTSEL: hold **BOOTSEL**, connect USB, then release **BOOTSEL**.
+2. A volume named **RPI-RP2** appears on the desktop and in Finder under **Locations**.
+3. Copy the UF2 onto the volume:
+   ```bash
+   cp firmware/build/pico_fis_bridge.uf2 /Volumes/RPI-RP2/
+   ```
+   Or drag `pico_fis_bridge.uf2` from Finder and drop it onto **RPI-RP2** in the Finder sidebar.
+4. The Pico resets; the **RPI-RP2** volume disappears. Connect a serial terminal (e.g. `screen /dev/tty.usbmodem* 115200` or Serial.app) to the new CDC port at 115200 baud.
+
+**If the volume does not appear:** Use a known data-capable USB cable; try another port. Run `system_profiler SPUSBDataType` after plugging in (with BOOTSEL held) to confirm the board is seen as "RPI-RP2" or "RP2 Boot".
+
+---
+
+#### Linux
+
+1. Put the Pico 2 W into BOOTSEL (hold BOOTSEL, plug USB, release). The volume is usually mounted at `/media/$USER/RPI-RP2` (Ubuntu/Debian) or similar; check your file manager or `lsblk` / `dmesg`.
+2. Copy the UF2:
+   ```bash
+   cp firmware/build/pico_fis_bridge.uf2 /media/$USER/RPI-RP2/
+   ```
+   (Adjust the path if your system mounts it elsewhere.)
+3. The device resets and runs the new firmware; the mass storage device disappears.
+
+---
 
 **Alternative: picoprobe / OpenOCD**
 
@@ -176,6 +246,9 @@ If you use a Pico as a probe or another debugger, you can flash the `.elf` or `.
 
 ### Display
 
-The FIS/MFA is a 64x88 pixel monochrome LCD. Nav icons are 1-bit 64x64 arrays in `fis_nav_icons.h`, rendered with `GraphicFromArray(x, y, width, height, array, 0)` (0 = flash/PROGMEM).
+The FIS/MFA is a 64x88 pixel monochrome LCD. The firmware sends two 3LB frame types (TLBFISLib-compatible):
+
+- **Radio text (0x81):** Two lines of 8-character text for nav, call, media, and clock.
+- **Graphics (0x53 + 0x55):** Claim/clear screen then bitmap blocks. Nav icons in `fis_nav_icons.h` (64x64 px, 1-bit) can be sent with `fis_display_inject_icon(index)` or `fis_display_inject_bitmap(x, y, w, h, data)`.
 
 **Prerequisite:** Code the cluster with VCDS or OBDeleven (Module 17 — Instruments) to enable the navigation source.

@@ -16,6 +16,7 @@ PCB files and schematic diagram will be made soon.
 
 ## Table of contents
 
+- [0. Project structure](#0-project-structure)
 - [1. System Overview](#1-system-overview)
 - [2. Host Device — Navit with D-Bus](#2-host-device--navit-with-d-bus)
   - [2.1 Supported Platforms](#21-supported-platforms)
@@ -43,6 +44,23 @@ PCB files and schematic diagram will be made soon.
 - [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
 - [8. Software Stack Summary](#8-software-stack-summary)
 - [9. Key References](#9-key-references)
+
+---
+
+## 0. Project structure
+
+This repository uses **no symlinks**; all paths are normal directories and files so that every system can clone and use it without symlink support.
+
+| Item | Description |
+|------|-------------|
+| [firmware/](firmware/) | Main Pico 2 W firmware: 3LB RX/TX, serial protocol, nav/media/clock injection, graphics. |
+| [firmware/README.md](firmware/README.md) | Build, flash, pinout, and firmware behaviour. |
+| [firmware/BOM.md](firmware/BOM.md) | Bill of materials for the PCB. |
+| [firmware-display-test/](firmware-display-test/) | Standalone display test firmware: cycles through all modes (nav text, icons, call, media, clock) every 4 seconds. |
+| [firmware-display-test/README.md](firmware-display-test/README.md) | How to build and use the display test. |
+| [nav-icons/](nav-icons/) | Navigation and status icon SVGs (sources for the bitmaps in `firmware/fis_nav_icons.h`). Copied from Navit-style icons. |
+| [PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx](PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx) | VW/Audi PQ35/46 CAN matrix (reference). |
+| [PQ35_46_ACAN_Glossary_DE_EN.md](PQ35_46_ACAN_Glossary_DE_EN.md) | German–English translation table for the CAN matrix document. |
 
 ---
 

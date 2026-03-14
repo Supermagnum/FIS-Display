@@ -1,13 +1,22 @@
  #include "fis_display.h"
 
+ #include <ctype.h>
  #include <stdio.h>
  #include <string.h>
 
  #include "hardware/gpio.h"
 
  #include "fis_3lb_tx.pio.h"
+ #include "fis_nav_icons.h"
  #include "local_time.h"
  #include "tz_lookup.h"
+
+ /* TLBFISLib-style 3LB graphic opcodes and block size */
+ #define FIS_3LB_CLEAR_BYTE   0x53u
+ #define FIS_3LB_BITMAP_BYTE  0x55u
+ #define FIS_3LB_CLAIM_CLEAR  0x82u  /* claim and clear, normal color */
+ #define FIS_3LB_BMP_OR       0x02u  /* bitmap OR output (normal) */
+ #define FIS_3LB_BLOCK_MAX    42u    /* max bytes per 3LB frame */
 
  static PIO  s_pio      = pio0;
  static uint s_sm       = 1;
@@ -76,6 +85,118 @@
          return false;
      }
      return (s_pio->fdebug & (1u << (PIO_FDEBUG_TXOV_BITS + s_sm))) != 0u;
+ }
+
+ /* Send claim/clear screen (0x53): fullscreen 64x88, normal color. */
+ static void send_claim_screen(void) {
+     const uint8_t frame[] = {
+         FIS_3LB_CLEAR_BYTE, 5, FIS_3LB_CLAIM_CLEAR,
+         0, 0, 64, 88
+     };
+     fis_send_bytes(frame, sizeof frame);
+ }
+
+ /* Send one bitmap block (0x55): option, x, y, then pixel rows. */
+ static void send_bitmap_block(uint8_t x, uint8_t y, const uint8_t *pixels,
+                               size_t pixel_len) {
+     if (pixel_len > FIS_3LB_BLOCK_MAX - 5u) {
+         pixel_len = FIS_3LB_BLOCK_MAX - 5u;
+     }
+     uint8_t frame[FIS_3LB_BLOCK_MAX];
+     size_t len = 0;
+     frame[len++] = FIS_3LB_BITMAP_BYTE;
+     frame[len++] = (uint8_t)(pixel_len + 3u);
+     frame[len++] = FIS_3LB_BMP_OR;
+     frame[len++] = x;
+     frame[len++] = y;
+     memcpy(&frame[len], pixels, pixel_len);
+     len += pixel_len;
+     fis_send_bytes(frame, len);
+ }
+
+ /* Inject a 1-bit bitmap at (x,y), width w, height h. Data is row-major, (w+7)/8 bytes per row. */
+ void fis_display_inject_bitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h,
+                                const uint8_t *bitmap) {
+     if (!bitmap || w == 0 || h == 0) {
+         return;
+     }
+     send_claim_screen();
+
+     const unsigned bytes_per_line = (unsigned)(w + 7u) / 8u;
+     const unsigned payload_max   = (unsigned)(FIS_3LB_BLOCK_MAX - 5u);
+     const unsigned lines_per_block = payload_max / bytes_per_line;
+     if (lines_per_block == 0u) {
+         return;
+     }
+
+     unsigned row = 0;
+     while (row < (unsigned)h) {
+         unsigned lines_this = (unsigned)h - row;
+         if (lines_this > lines_per_block) {
+             lines_this = lines_per_block;
+         }
+         size_t pixel_bytes = lines_this * bytes_per_line;
+         send_bitmap_block((uint8_t)x, (uint8_t)(y + row), bitmap + row * bytes_per_line, pixel_bytes);
+         row += lines_this;
+     }
+ }
+
+ void fis_display_inject_icon(uint8_t icon_index) {
+     if (icon_index >= FIS_ICON_COUNT) {
+         return;
+     }
+     const FISIcon *icon = &FIS_ICON_TABLE[icon_index];
+     if (!icon->data || icon->w == 0 || icon->h == 0) {
+         return;
+     }
+     fis_display_inject_bitmap(0, 0, icon->w, icon->h, icon->data);
+ }
+
+ /* Map maneuver string (from NAV:TURN:<code>) to FIS_ICON_TABLE index. Returns -1 if no match. */
+ int fis_maneuver_to_icon_index(const char *maneuver) {
+     if (!maneuver || !maneuver[0]) {
+         return -1;
+     }
+     char buf[32];
+     size_t i = 0;
+     for (const char *s = maneuver; *s && i < sizeof(buf) - 1; s++) {
+         char c = (char)(unsigned char)*s;
+         if (c == ' ' || c == '-') {
+             buf[i++] = '_';
+         } else {
+             buf[i++] = (char)(unsigned char)tolower((unsigned char)c);
+         }
+     }
+     buf[i] = '\0';
+
+     /* Match normalized string to icon index. Order: specific first, then generic. */
+     if (strcmp(buf, "destination") == 0) return 0;
+     if (strcmp(buf, "exit_left") == 0 || strcmp(buf, "exit_l") == 0) return 1;
+     if (strcmp(buf, "exit_right") == 0 || strcmp(buf, "exit_r") == 0) return 2;
+     if (strcmp(buf, "keep_left") == 0 || strcmp(buf, "keepleft") == 0) return 3;
+     if (strcmp(buf, "keep_right") == 0 || strcmp(buf, "keepright") == 0) return 4;
+     if (strcmp(buf, "left_3") == 0 || strcmp(buf, "left3") == 0) return 7;
+     if (strcmp(buf, "left_2") == 0 || strcmp(buf, "left2") == 0) return 6;
+     if (strcmp(buf, "left_1") == 0 || strcmp(buf, "left1") == 0 || strcmp(buf, "left") == 0) return 5;
+     if (strcmp(buf, "merge_left") == 0 || strcmp(buf, "mergeleft") == 0) return 8;
+     if (strcmp(buf, "merge_right") == 0 || strcmp(buf, "mergeright") == 0) return 9;
+     if (strcmp(buf, "right_3") == 0 || strcmp(buf, "right3") == 0) return 12;
+     if (strcmp(buf, "right_2") == 0 || strcmp(buf, "right2") == 0) return 11;
+     if (strcmp(buf, "right_1") == 0 || strcmp(buf, "right1") == 0 || strcmp(buf, "right") == 0) return 10;
+     if (strncmp(buf, "roundabout_r", 12) == 0 && buf[12] >= '1' && buf[12] <= '8' && buf[13] == '\0') {
+         int exit_no = buf[12] - '1';
+         return 21 + (exit_no >= 0 ? exit_no : 0);
+     }
+     if (strncmp(buf, "roundabout_l", 12) == 0 && buf[12] >= '1' && buf[12] <= '8' && buf[13] == '\0') {
+         int exit_no = buf[12] - '1';
+         return 13 + (exit_no >= 0 ? exit_no : 0);
+     }
+     if (strcmp(buf, "roundabout") == 0 || strcmp(buf, "rndabout") == 0 ||
+         strcmp(buf, "roundabout_l1") == 0) return 13;
+     if (strcmp(buf, "straight") == 0) return 29;
+     if (strcmp(buf, "turnaround_left") == 0 || strcmp(buf, "turn_around_left") == 0) return 30;
+     if (strcmp(buf, "turnaround_right") == 0 || strcmp(buf, "turn_around_right") == 0) return 31;
+     return -1;
  }
 
 static void build_text_frame(const char *line0, const char *line1,

@@ -27,5 +27,15 @@
  void fis_display_inject_call(const nav_state_t *state);
  void fis_display_inject_clock(const nav_state_t *state, const fis_config_t *config);
 
+ /* Graphic/bitmap (TLBFISLib 0x55 style). Sends claim (0x53) then bitmap blocks. */
+ void fis_display_inject_bitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h,
+                                const uint8_t *bitmap);
+
+ /* Inject one of the nav/status icons from fis_nav_icons.h (0 .. FIS_ICON_COUNT-1). */
+ void fis_display_inject_icon(uint8_t icon_index);
+
+ /* Map maneuver string (e.g. from NAV:TURN:<code>) to icon index. Returns -1 if no match. */
+ int fis_maneuver_to_icon_index(const char *maneuver);
+
  #endif
 

@@ -1,0 +1,13 @@
+# Build output
+build/
+firmware/build/
+firmware-display-test/build/
+
+# Editor / temp
+.~lock.*
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/
