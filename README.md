@@ -7,7 +7,9 @@ VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 
 ## What this project does
 
-This repository provides firmware, PCB design, and documentation to show Navit navigation (and optionally media, call, clock) on the VW Passat B6 (3C) FIS/MFA display. A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth. The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and clock. Optional CAN bus support (MCP2561, disabled by default) is included. The Pico is a middleman only; all navigation logic stays on the host.
+[Navit](https://github.com/navit-gps/navit) is an open-source, modular turn-by-turn navigation engine that can run on Linux, Android, and other platforms. This project uses Navit on a host device (with D-Bus enabled) to drive the car's FIS/MFA display.
+
+This repository provides firmware, PCB design, and documentation to show Navit navigation (and optionally media, call, clock) on the VW Passat B6 (3C) FIS/MFA display. A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth (pair once as FIS-Bridge). The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and maneuver icons; when not navigating, it can show media track info, incoming call caller ID, or a clock screen with GPS time, ETA (e.g. ARR 14:32), remaining distance, and compass heading. Optional CAN bus support (MCP2561, disabled by default) is included. The Pico is a middleman only; all navigation logic stays on the host. When CAN bus is enabled, it can adjust your clock automatically. A separate display-test firmware is provided for bench-testing the cluster without a Navit host.
 
 PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files and Gerbers are in [pcb-files/](pcb-files/). See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing) for what they are and how to use them.
 
