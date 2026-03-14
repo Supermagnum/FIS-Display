@@ -91,30 +91,40 @@ This repository uses **no symlinks**; all paths are normal directories and files
                │ Pico 2 W         │
                │ (RP2350)         │
                │                  │
-               │ Middleman only:  │
-               │ receives serial  │
-               │ protocol, injects│
-               │ onto 3LB bus     │
+               │ Middleman:       │
+               │ serial -> 3LB;   │
+               │ optional: SPI -> │
+               │ MCP2515->CAN     │
                └────────┬─────────┘
                         │
-             3LB (ENA / CLK / DATA)
-             via BS170 level shifters
-             (3.3V ↔ 5V)
-                        │
-          ┌─────────────┴──────────────┐
-          │                            │
-          ▼                            ▼
-┌──────────────────────┐   ┌───────────────────────┐
-│ VW Passat B6 (3C)    │   │ Original ECU           │
-│ FIS/MFA instrument   │◄──│ (talks 3LB natively,   │
-│ cluster LCD screen   │   │  Pico co-exists via    │
-│ 64×88 px, 1-bit      │   │  ENA arbitration)      │
-└──────────────────────┘   └───────────────────────┘
+         ┌──────────────┼──────────────┐
+         │              │              │
+         ▼              │              ▼
+ 3LB (ENA/CLK/DATA)     │      Optional CAN (if enabled):
+ via BS170 level        │      GPIO10-13 (SPI) -> MCP2515
+ shifters (3.3V<->5V)   │      -> MCP2551 -> CAN-H/CAN-L
+         │              │              │
+         ▼              │              ▼
+ ┌──────────────────┐   │   ┌──────────────────────────┐
+ │ VW Passat B6 (3C) │   │   │ Comfort/infotainment CAN  │
+ │ FIS/MFA cluster   │◄──┘   │ 100 kbit/s (when fitted) │
+ │ 64x88 px, 1-bit   │       └──────────────────────────┘
+ └────────┬──────────┘
+          │
+          ▼
+ ┌───────────────────────┐
+ │ Original ECU          │
+ │ (talks 3LB natively,  │
+ │  Pico co-exists via   │
+ │  ENA arbitration)     │
+ └───────────────────────┘
 ```
 
 The Pico 2 W is a **pure middleman**. It has no navigation intelligence — it only receives
 the serial protocol from the host device and injects the translated frames onto the 3LB bus.
-All navigation logic stays on the host device running Navit.
+All navigation logic stays on the host device running Navit. Optionally, when CAN is enabled
+(see [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)), the Pico can communicate with the
+vehicle comfort/infotainment CAN (100 kbit/s) via SPI to an MCP2515 and MCP2551 transceiver.
 
 The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico
 co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
@@ -422,6 +432,17 @@ Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for
 | GPIO3 | FIS_PIN_ENA_OUT — claims bus before injecting |
 | GPIO4 | FIS_PIN_CLK_OUT — PIO SM1 side-set |
 | GPIO5 | FIS_PIN_DATA_OUT — PIO SM1 out_base |
+
+**Optional CAN (when CAN enabled, SPI to MCP2515):** 3.3 V logic; no level shifter to MCP2551. See `firmware/fis_can.h` and firmware README.
+
+| GPIO  | Signal        | Direction | Notes                    |
+|-------|---------------|-----------|---------------------------|
+| GPIO10 | FIS_CAN_PIN_SCK  | Out       | SPI clock to MCP2515      |
+| GPIO11 | FIS_CAN_PIN_MOSI | Out       | SPI MOSI to MCP2515 SI    |
+| GPIO12 | FIS_CAN_PIN_MISO | In        | SPI MISO from MCP2515 SO  |
+| GPIO13 | FIS_CAN_PIN_CS   | Out       | SPI chip select (active low) |
+
+MCP2515 TXD/RXD connect to MCP2551 (TXD/RXD); MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
 
 ### 5.7 Cluster Coding Prerequisite
 

@@ -49,6 +49,17 @@ All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V
 - `GPIO4` – `FIS_PIN_CLK_OUT` (CLK, PIO SM1 side-set, via level shifter)
 - `GPIO5` – `FIS_PIN_DATA_OUT` (DATA, PIO SM1 out_base, via level shifter)
 
+**Optional CAN (when enabled, SPI to MCP2515):** 3.3 V; no level shifter needed to MCP2551. See `fis_can.h` for `FIS_CAN_PIN_*`.
+
+| GPIO   | Symbol             | Direction | Function                    |
+|--------|--------------------|-----------|-----------------------------|
+| GPIO10 | FIS_CAN_PIN_SCK    | Out       | SPI clock to MCP2515        |
+| GPIO11 | FIS_CAN_PIN_MOSI   | Out       | SPI MOSI to MCP2515 SI      |
+| GPIO12 | FIS_CAN_PIN_MISO   | In        | SPI MISO from MCP2515 SO    |
+| GPIO13 | FIS_CAN_PIN_CS     | Out       | SPI chip select (active low) |
+
+MCP2515 SI/SO/SCK/CS connect to the Pico; MCP2515 TXD/RXD connect to MCP2551 TXD/RXD; MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
+
 **USB:** Pico USB CDC for Navit/host protocol; also 5 V power (VSYS). No 12 V on the PCB.
 
 **Bluetooth:** Onboard CYW43439 via BTstack SPP. Same NAV/BT protocol as USB; no extra GPIO.
