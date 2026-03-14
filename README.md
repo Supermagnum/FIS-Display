@@ -651,6 +651,8 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 
 | Resource | URL |
 |----------|-----|
+| PQ35/46 CAN K-Matrix (VW/Audi) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx |
+| PQ35/46 CAN Glossary (DE–EN) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_Glossary_DE_EN.md |
 | Navit D-Bus external dashboard spec | https://github.com/Supermagnum/navit/blob/feature/navit-dash/docs/development/navit_dbus_external_dashboards.rst |
 | Navit project | https://github.com/navit-gps/navit |
 | TLBFISLib | https://github.com/domnulvlad/TLBFISLib |
