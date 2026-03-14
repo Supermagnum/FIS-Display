@@ -305,7 +305,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
 
-**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. All default to 1 (on).
+**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN defaults to 0 (off).
 
 | Message | Effect |
 |---------|--------|
@@ -313,6 +313,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
 | `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading (N, NE, ...) on clock line 2 |
 | `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
+| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (default off). Requires external CAN hardware; not on current PCB. |
 
 ---
 
@@ -618,6 +619,7 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 - Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`)
 - Reads `NAV:*`, `BT:*`, and `CFG:*` messages from both interfaces non-blocking
 - Updates shared `nav_state_t` and feature toggles (`fis_config_t`) under a critical section
+- When CAN is enabled (`CFG:CAN:1`), runs optional CAN poll (stub until external CAN hardware is used)
 
 **Core 1:**
 - Monitors 3LB ENA/CLK/DATA via PIO SM0 (RX sniffer)

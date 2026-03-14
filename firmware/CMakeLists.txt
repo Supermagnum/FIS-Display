@@ -9,6 +9,7 @@ pico_sdk_init()
 add_executable(pico_fis_bridge
     fis_bridge.c
     fis_config.c
+    fis_can.c
     fis_rx.c
     fis_display.c
     serial_parser.c

@@ -83,7 +83,7 @@ Same on USB CDC and Bluetooth SPP:
 
 When `NAV:TIME` and optionally `NAV:POS` are received, the Pico looks up the timezone from a compact bounding-box table stored in flash, computes DST transitions algorithmically (EU rule: last Sunday March/October at 01:00 UTC), converts UTC to local time, and can inject a clock display on the FIS when no nav/media/call is being shown. ETA (Navit `eta`, Unix timestamp) is converted to local time and shown on clock line 2 (e.g. ARR14:32). No network, no OS timezone database, no user configuration.
 
-**Feature toggles:** Send `CFG:<name>:0` or `CFG:<name>:1`. All default to 1 (on).
+**Feature toggles:** Send `CFG:<name>:0` or `CFG:<name>:1`. Clock/ETA/compass/remain default to 1 (on). CAN defaults to 0 (off).
 
 | Message | Effect |
 |---------|--------|
@@ -91,6 +91,23 @@ When `NAV:TIME` and optionally `NAV:POS` are received, the Pico looks up the tim
 | `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
 | `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading on clock line 2 |
 | `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
+| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (default off). Set in `firmware/fis_config_defaults.h`; requires external CAN hardware; not on current PCB. |
+
+---
+
+### Optional CAN bus (disabled by default)
+
+CAN support is **off by default**; the default is defined in `firmware/fis_config_defaults.h` (`FIS_CAN_ENABLED_DEFAULT 0`). Enable at runtime with `CFG:CAN:1` only when external CAN hardware is fitted.
+
+**Bit rate:** The B6 comfort/infotainment CAN runs at **100 kbit/s**, not 500 kbit/s. Configure the MCP2515 bit timing for 100 kbit/s.
+
+**Hardware (when implementing):**
+
+- **MCP2515** — CAN controller (SPI to Pico). Set bit timing for 100 kbit/s.
+- **MCP2551-I/P (DIP-8)** — CAN transceiver; connects to CAN-H/CAN-L. The MCP2551 runs at 5 V on the bus side but its TXD/RXD logic pins are 3.3 V compatible, so **no level shifter** is needed between the Pico and the MCP2551 (unlike the 3LB side).
+- **8 MHz crystal** for the MCP2515, with two **22 pF** capacitors (typical).
+- **120 ohm** termination resistor if the Pico board is at a bus endpoint.
+- **Decoupling capacitors** on supply pins of MCP2515 and MCP2551.
 
 ---
 
@@ -115,7 +132,9 @@ firmware/
   fis_display.h/.c     – Frame build and inject (nav/media/call/clock)
   serial_parser.h/.c   – USB CDC and Bluetooth SPP line parser (NAV/BT/CFG)
   nav_state.h          – nav_state_t, enums
-  fis_config.h/.c      – Feature toggles (clock, ETA, compass, remain); set via CFG:* serial
+  fis_config.h/.c           – Feature toggles (clock, ETA, compass, remain, CAN); set via CFG:* serial
+  fis_config_defaults.h     – Build-time defaults; CAN disabled by default (FIS_CAN_ENABLED_DEFAULT 0)
+  fis_can.h/.c              – Optional CAN bus (default off); stub for future MCP2515 + MCP2551 (100 kbit/s)
   fis_bridge.c         – main(), dual-core, decision loop
   tz_table.h/.c        – Timezone bounding boxes and DST rules (flash)
   tz_lookup.h/.c       – Timezone lookup by lat/lon, DST and UTC→local
@@ -236,7 +255,7 @@ If you use a Pico as a probe or another debugger, you can flash the `.elf` or `.
 
 ### Runtime behaviour
 
-**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses `NAV:*`, `BT:*`, and `CFG:*` messages, updates shared `nav_state_t` and `fis_config_t` under a critical section.
+**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses `NAV:*`, `BT:*`, and `CFG:*` messages, updates shared `nav_state_t` and `fis_config_t` under a critical section. When CAN is enabled (`CFG:CAN:1`), calls `fis_can_poll` (stub until CAN hardware support is added).
 
 **Core 1:** Runs the 3LB loop: monitors ENA for idle, snapshots `nav_state_t` and `fis_config_t`, then injects (in order of priority) call frame, nav frame, media frame, or clock frame (if clock enabled and GPS time available); otherwise leaves bus to the ECU.
 

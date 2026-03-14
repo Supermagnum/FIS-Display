@@ -75,6 +75,8 @@ static void handle_line(const char *line, nav_state_t *state, fis_config_t *conf
             config->show_compass = (val != 0);
         } else if (strncmp(line + 4, "REMAIN:", 7) == 0) {
             config->show_remain = (val != 0);
+        } else if (strncmp(line + 4, "CAN:", 4) == 0) {
+            config->can_enabled = (val != 0);
         }
     }
 

@@ -5,11 +5,12 @@
  #include "hardware/sync.h"
  #include "hardware/pio.h"
 
- #include "nav_state.h"
- #include "fis_config.h"
- #include "fis_rx.h"
- #include "fis_display.h"
- #include "serial_parser.h"
+#include "nav_state.h"
+#include "fis_config.h"
+#include "fis_rx.h"
+#include "fis_display.h"
+#include "fis_can.h"
+#include "serial_parser.h"
 
  static nav_state_t        g_nav_state;
  static fis_config_t       g_fis_config;
@@ -93,10 +94,11 @@
      // Launch core 1 to run the 3LB loop.
      multicore_launch_core1(core1_3lb_loop);
 
-     // Core 0: handle serial input and update nav_state and config.
-     for (;;) {
-         serial_parser_poll(&g_nav_state, &g_fis_config, &g_nav_lock);
-         sleep_ms(5);
-     }
+    // Core 0: handle serial input, config, and optional CAN poll.
+    for (;;) {
+        serial_parser_poll(&g_nav_state, &g_fis_config, &g_nav_lock);
+        fis_can_poll(&g_fis_config);
+        sleep_ms(5);
+    }
  }
 

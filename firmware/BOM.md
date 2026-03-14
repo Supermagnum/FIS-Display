@@ -29,3 +29,5 @@ Firmware target: Raspberry Pi Pico 2 W based inline 3LB (DATA/CLK/ENA) intercept
 | 23 | M3 machine screws (board mounting) | e.g. `RPC1495-ND` | 4 | M3 screw | For securing PCB to standoffs or enclosure. |
 | 24 | Silkscreen / labeling (no P/N) | – | – | – | Ensure PCB silkscreen clearly labels JST connectors (cluster vs harness), ENA/CLK/DATA signal directions, Pico orientation, and indicates Bluetooth device name (“FIS‑Bridge”) for installers. |
 
+**Optional CAN bus (when CAN support is implemented):** B6 comfort/infotainment CAN runs at **100 kbit/s** (not 500 kbit/s); configure MCP2515 bit timing accordingly. **MCP2551-I/P (DIP-8)** — CAN transceiver (bus side 5 V; TXD/RXD 3.3 V compatible, no level shifter to Pico). **MCP2515** — SPI CAN controller; **8 MHz crystal** with two **22 pF** capacitors; **120 ohm** termination resistor if at bus endpoint; decoupling capacitors on MCP2515 and MCP2551 supply pins. CAN is disabled by default in `firmware/fis_config_defaults.h`.
+
