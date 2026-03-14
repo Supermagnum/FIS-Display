@@ -14,7 +14,7 @@ PCB and schematic have been designed in KiCad; design files and Gerbers are in [
 
 The firmware **supports CAN bus** (MCP2561 on GPIO 11/12) but it is **disabled by default**; enable with `CFG:CAN:1` when external CAN hardware is fitted.
 
-PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing) for what they are and how to use them.
+PCB design files and Gerbers are in [pcb-files/](pcb-files/). See [5.8 Gerber files and PCB manufacturing](#58-gerber-files-and-pcb-manufacturing) for what they are and how to use them. Made with [KiCad](https://www.kicad.org/).
 
 ---
 
