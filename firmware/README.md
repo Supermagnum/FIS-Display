@@ -35,7 +35,7 @@ The Pico auto-accepts all pairing requests — no user interaction on the Pico s
 
 ### Pinout (Pico 2 W)
 
-All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 2.2 kOhm pull-ups to each rail per channel. Use metal film or SMD thick/thin film resistors for low parasitic inductance; avoid wirewound types.
+All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V GPIO using BS170 N-channel MOSFETs (TO-92, THT) in the standard NXP bidirectional open-drain level shift circuit, with 2.2 kOhm pull-ups to each rail per channel. Use non-inductive resistors (e.g. metal film or SMD thick/thin film); avoid wirewound types.
 
 **3LB RX (inputs):**
 
@@ -117,14 +117,22 @@ CAN support is **off by default**; the default is defined in `firmware/fis_confi
 - **MCP2515** — CAN controller (SPI to Pico). Set bit timing for 100 kbit/s.
 - **MCP2551-I/P (DIP-8)** — CAN transceiver; connects to CAN-H/CAN-L. The MCP2551 runs at 5 V on the bus side but its TXD/RXD logic pins are 3.3 V compatible, so **no level shifter** is needed between the Pico and the MCP2551 (unlike the 3LB side).
 - **8 MHz crystal** for the MCP2515, with two **22 pF** capacitors (typical).
-- **120 ohm** termination resistor if the Pico board is at a bus endpoint.
+- **Termination:** See below; add 120 ohm non-inductive resistor only when your node is at a bus end.
 - **Decoupling capacitors** on supply pins of MCP2515 and MCP2551.
+
+**CAN termination resistors:**
+
+- **Tapped into the middle of an existing bus** — no termination resistor needed; the two end nodes already provide it.
+- **Replacing a node that was a termination endpoint** (e.g. where the OEM radio was) — you may need to add 120 ohm (non-inductive) to replace the termination that was lost when the radio was removed.
+- **Standalone bench setup** — both ends need 120 ohm (non-inductive).
+
+To check: measure resistance between CAN-H and CAN-L with everything powered off. You should see approximately **60 ohm** if both terminations are present, or **120 ohm** if only one remains.
 
 ---
 
 ### Hardware notes
 
-**Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 2.2 kOhm pull-ups per channel (3.3 V and 5 V), preferably metal film or SMD thick/thin film (avoid wirewound). See `BOM.md`.
+**Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 2.2 kOhm non-inductive pull-ups per channel (3.3 V and 5 V), e.g. metal film or SMD thick/thin film (avoid wirewound). See `BOM.md`.
 
 **Inline connectors:** JST PH 2.00 mm, 3-position; one pair each side (cluster and harness). PHR-3 housing, B3B-PH-K header, SPH-002T-P0.5S crimps (24–32 AWG).
 

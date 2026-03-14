@@ -381,12 +381,12 @@ bus without any relay or switch.
 ### 5.3 Level Shifting
 
 6× **BS170** N-channel MOSFET (TO-92, through-hole), one per 3LB GPIO line (3 RX + 3 TX).
-Each channel uses two 2.2 kΩ pull-up resistors — one to 3.3 V, one to 5 V. Use metal film or SMD thick/thin film resistors for low parasitic inductance; avoid wirewound types.
+Each channel uses two 2.2 kΩ pull-up resistors — one to 3.3 V, one to 5 V. Use non-inductive resistors (e.g. metal film or SMD thick/thin film); avoid wirewound types.
 
 | Part | DigiKey P/N | Qty |
 |------|-------------|-----|
 | BS170 MOSFET TO-92 THT | BS170-ND | 6 |
-| 2.2 kΩ resistor 0.25 W THT | — | 12 |
+| 2.2 kΩ resistor 0.25 W THT (non-inductive) | — | 12 |
 
 BS170 pinout (flat face toward you, left to right): **Source — Gate — Drain**.
 
@@ -442,7 +442,7 @@ Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for
 | GPIO12 | FIS_CAN_PIN_MISO | In        | SPI MISO from MCP2515 SO  |
 | GPIO13 | FIS_CAN_PIN_CS   | Out       | SPI chip select (active low) |
 
-MCP2515 TXD/RXD connect to MCP2551 (TXD/RXD); MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
+MCP2515 TXD/RXD connect to MCP2551 (TXD/RXD); MCP2551 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s). For when to add a 120 ohm termination (tapped in middle vs replacing radio vs bench), see firmware README.
 
 ### 5.7 Cluster Coding Prerequisite
 
