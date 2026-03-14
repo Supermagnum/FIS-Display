@@ -114,8 +114,11 @@
      fis_send_bytes(frame, len);
  }
 
- /* Inject a 1-bit bitmap at (x,y), width w, height h. Data is row-major, (w+7)/8 bytes per row. */
- void fis_display_inject_bitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h,
+ /*
+ * Inject a 1-bit bitmap at (x,y). Data: row-major, (w+7)/8 bytes per row, MSB first
+ * (same layout as fis_nav_icons.h). Sends 0x53 claim then 0x55 bitmap blocks.
+ */
+void fis_display_inject_bitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h,
                                 const uint8_t *bitmap) {
      if (!bitmap || w == 0 || h == 0) {
          return;
@@ -141,10 +144,11 @@
      }
  }
 
- void fis_display_inject_icon(uint8_t icon_index) {
-     if (icon_index >= FIS_ICON_COUNT) {
-         return;
-     }
+/* Look up icon by FIS_ICON_TABLE index and send as fullscreen 64x64 bitmap. */
+void fis_display_inject_icon(uint8_t icon_index) {
+    if (icon_index >= FIS_ICON_COUNT) {
+        return;
+    }
      const FISIcon *icon = &FIS_ICON_TABLE[icon_index];
      if (!icon->data || icon->w == 0 || icon->h == 0) {
          return;

@@ -58,7 +58,8 @@ This repository uses **no symlinks**; all paths are normal directories and files
 | [firmware/BOM.md](firmware/BOM.md) | Bill of materials for the PCB. |
 | [firmware-display-test/](firmware-display-test/) | Standalone display test firmware: cycles through all modes (nav text, icons, call, media, clock) every 4 seconds. |
 | [firmware-display-test/README.md](firmware-display-test/README.md) | How to build and use the display test. |
-| [nav-icons/](nav-icons/) | Navigation and status icon SVGs (sources for the bitmaps in `firmware/fis_nav_icons.h`). Copied from Navit-style icons. |
+| [nav-icons/](nav-icons/) | Navigation and status icon SVGs (sources for the bitmaps in `firmware/fis_nav_icons.h`). See [nav-icons/README.md](nav-icons/README.md) for adding new icons. |
+| [tools/](tools/) | Build/convert helpers. [tools/svg_to_fis_icon.py](tools/svg_to_fis_icon.py) converts SVG to the 64x64 1-bit C array format used by the firmware. |
 | [PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx](PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx) | VW/Audi PQ35/46 CAN matrix (reference). |
 | [PQ35_46_ACAN_Glossary_DE_EN.md](PQ35_46_ACAN_Glossary_DE_EN.md) | German–English translation table for the CAN matrix document. |
 

@@ -120,7 +120,7 @@ firmware/
   tz_table.h/.c        – Timezone bounding boxes and DST rules (flash)
   tz_lookup.h/.c       – Timezone lookup by lat/lon, DST and UTC→local
   local_time.h/.c      – Parse ISO8601, format local time and ETA for FIS
-  fis_nav_icons.h      – Pre-generated 1-bit nav icon arrays (64x64 px)
+  fis_nav_icons.h      – Pre-generated 1-bit nav icon arrays (64x64 px); see nav-icons/README.md and tools/svg_to_fis_icon.py to add icons
 ```
 
 ---
@@ -252,3 +252,5 @@ The FIS/MFA is a 64x88 pixel monochrome LCD. The firmware sends two 3LB frame ty
 - **Graphics (0x53 + 0x55):** Claim/clear screen then bitmap blocks. Nav icons in `fis_nav_icons.h` (64x64 px, 1-bit) can be sent with `fis_display_inject_icon(index)` or `fis_display_inject_bitmap(x, y, w, h, data)`.
 
 **Prerequisite:** Code the cluster with VCDS or OBDeleven (Module 17 — Instruments) to enable the navigation source.
+
+**Adding custom icons:** Add an SVG in [nav-icons/](../nav-icons/), run `python3 tools/svg_to_fis_icon.py nav-icons/your_icon.svg`, then add the printed C array and `FIS_ICON_TABLE` entry to `fis_nav_icons.h` and increment `FIS_ICON_COUNT`. See [nav-icons/README.md](../nav-icons/README.md).
