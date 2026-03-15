@@ -22,16 +22,19 @@ After phase 40 it wraps to 0. Full cycle is 41 x 4 = 164 seconds.
 
 ## Building
 
-Same pinout and hardware as the main firmware (see [firmware/README.md](../firmware/README.md)). Build from this directory using the Pico SDK:
+Same pinout and hardware as the main firmware (see [firmware/README.md](../firmware/README.md)). Build the same way as the main firmware: set `PICO_SDK_PATH` (e.g. `export PICO_SDK_PATH=$HOME/pico/pico-sdk` or add to `~/.bashrc` and `source` it). This project reuses the SDK import script from `../firmware/pico_sdk_import.cmake`.
 
 ```bash
-mkdir build
+cd firmware-display-test
+mkdir -p build
 cd build
-cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
-make
+cmake ..
+make -j4
 ```
 
-Output: `build/fis_display_test.uf2`.
+Output: `firmware-display-test/build/fis_display_test.uf2`.
+
+If the SDK is not installed, see [firmware/README.md - Installing the Pico SDK](../firmware/README.md#installing-the-pico-sdk-if-missing).
 
 ## Flashing
 

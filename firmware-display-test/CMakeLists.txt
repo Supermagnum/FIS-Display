@@ -4,7 +4,8 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-include(pico_sdk_import.cmake)
+# Reuse SDK import from main firmware (or set PICO_SDK_PATH).
+include(${CMAKE_CURRENT_SOURCE_DIR}/../firmware/pico_sdk_import.cmake)
 
 project(fis_display_test C CXX ASM)
 

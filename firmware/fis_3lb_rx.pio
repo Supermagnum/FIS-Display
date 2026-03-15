@@ -29,8 +29,8 @@
 .wrap_target
 bitloop:
     ; Wait for CLK to go low then high (rising edge on jmp pin)
-    wait 0 pin        ; CLK low
-    wait 1 pin        ; CLK high
+    wait 0 pin, 0        ; CLK low
+    wait 1 pin, 0        ; CLK high
 
     ; Sample one bit from DATA into ISR
     in pins, 1

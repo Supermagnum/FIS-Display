@@ -10,6 +10,7 @@
 #include "fis_rx.h"
 #include "fis_display.h"
 #include "fis_can.h"
+#include "fis_can_oem.h"
 #include "serial_parser.h"
 
  static nav_state_t        g_nav_state;
@@ -94,10 +95,17 @@
      // Launch core 1 to run the 3LB loop.
      multicore_launch_core1(core1_3lb_loop);
 
-    // Core 0: handle serial input, config, and optional CAN poll.
+    // Core 0: handle serial input, config, CAN poll, and OEM CAN (mDiagnose_1, mEinheiten).
     for (;;) {
         serial_parser_poll(&g_nav_state, &g_fis_config, &g_nav_lock);
         fis_can_poll(&g_fis_config);
+        {
+            nav_state_t oem_state;
+            critical_section_enter_blocking(&g_nav_lock);
+            oem_state = g_nav_state;
+            critical_section_exit(&g_nav_lock);
+            fis_can_oem_tick(&oem_state, &g_fis_config);
+        }
         sleep_ms(5);
     }
  }

@@ -1,8 +1,9 @@
  #ifndef SERIAL_PARSER_H
  #define SERIAL_PARSER_H
 
- #include "pico/stdlib.h"
- #include "hardware/sync.h"
+#include "pico/stdlib.h"
+#include "pico/critical_section.h"
+#include "hardware/sync.h"
 
  #include "nav_state.h"
  #include "fis_config.h"

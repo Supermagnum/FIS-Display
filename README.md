@@ -9,15 +9,11 @@ VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 
 [Navit](https://github.com/navit-gps/navit) is an open-source, modular turn-by-turn navigation engine that can run on Linux, Android, and other platforms. This project uses Navit on a host device (with D-Bus enabled) to drive the car's FIS/MFA display.
 
-This repository provides firmware, PCB design, and documentation to show Navit navigation (and optionally media, call, clock) on the VW Passat B6 (3C) FIS/MFA display. A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth (pair once as FIS-Bridge). The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and maneuver icons; when not navigating, it can show media track info, incoming call caller ID, or a clock screen with GPS time, ETA (e.g. ARR 14:32), remaining distance, and compass heading. 
-
-Optional CAN bus support (MCP2561, disabled by default) is included when the firmware functions for that is finished.
-
-The Pico is a middleman only; all navigation logic stays on the host. When CAN bus is enabled, it can adjust your clock automatically. A separate display-test firmware is provided for bench-testing the cluster without a Navit host.
+This repository provides firmware, PCB design, and documentation to show Navit navigation (and optionally media, call, clock) on the VW Passat B6 (3C) FIS/MFA display. A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth (pair once as FIS-Bridge). The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and maneuver icons; when not navigating, it can show media track info, incoming call caller ID, or a clock screen with GPS time, ETA (e.g. ARR 14:32), remaining distance, and compass heading. The firmware supports CAN bus (MCP2561 on GPIO 11/12, 100 kbit/s, software CAN 2.0A send/receive); it is disabled by default and can be enabled with CFG:CAN:1. The Pico is a middleman only; all navigation logic stays on the host. When CAN bus is enabled, it can adjust your clock automatically. A separate display-test firmware is provided for bench-testing the cluster without a Navit host.
 
 PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files and Gerbers are in [pcb-files/](pcb-files/). See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing) for what they are and how to use them.
 
-> **Note:** The firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See `firmware/README.md` for build and flash instructions.
+> **Note:** The firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See [firmware/README.md](firmware/README.md) for build and flash instructions; that file also explains how to install the Raspberry Pi Pico SDK if it is missing.
 
 ## Gerber files and PCB manufacturing
 
@@ -138,7 +134,7 @@ This repository uses **no symlinks**; all paths are normal directories and files
          │              │              │
          ▼              │              ▼
  ┌──────────────────┐   │   ┌──────────────────────────┐
- │ VW Passat B6 (3C) │   │   │ Comfort/infotainment CAN  │
+ │ VW Passat B6 (3C) │   │   │ Komfort-CAN (K-CAN)      │
  │ FIS/MFA cluster   │◄──┘   │ 100 kbit/s (when fitted) │
  │ 64x88 px, 1-bit   │       └──────────────────────────┘
  └────────┬──────────┘
@@ -156,7 +152,7 @@ The Pico 2 W is a **pure middleman**. It has no navigation intelligence — it o
 the serial protocol from the host device and injects the translated frames onto the 3LB bus.
 All navigation logic stays on the host device running Navit. Optionally, when CAN is enabled
 (see [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)), the Pico can communicate with the
-vehicle comfort/infotainment CAN (100 kbit/s) via GPIO 11/12 to the MCP2561 (TXD/RXD only).
+vehicle Komfort-CAN (Comfort CAN / K-CAN, 100 kbit/s) via GPIO 11/12 to the MCP2561 (TXD/RXD only).
 
 The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico
 co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
@@ -347,7 +343,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
 
-**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN bus is **supported by the firmware** but **disabled by default** (0).
+**Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN bus has **full firmware support** (send/receive, 100 kbit/s, MCP2561) but is **disabled by default** (0).
 
 | Message | Effect |
 |---------|--------|
@@ -355,7 +351,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
 | `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading (N, NE, ...) on clock line 2 |
 | `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
-| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (supported by firmware, **disabled by default**). Enable with 1 when external MCP2561 hardware is fitted. |
+| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus (full support: send/receive at 100 kbit/s, **disabled by default**). Enable with 1 when MCP2561 is connected to GPIO 11/12. |
 
 ---
 
@@ -465,14 +461,24 @@ Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for
 | GPIO4 | FIS_PIN_CLK_OUT — PIO SM1 side-set |
 | GPIO5 | FIS_PIN_DATA_OUT — PIO SM1 out_base |
 
-**Optional CAN (when CAN enabled, MCP2561):** The CAN controller used is the MCP2561. It has only 2 signal connections: TXD and RXD. 3.3 V logic; no level shifter needed. See `firmware/fis_can.h` and firmware README.
+**Optional CAN (firmware supports full CAN; when enabled, MCP2561):** On the VW Passat B6 (PQ46 platform) the bus connecting the instrument cluster to the rest of the modules is the **Komfort-CAN** (Comfort CAN), also referred to as **K-CAN** or **KCAN**. The CAN transceiver used is the MCP2561. It has only 2 signal connections: TXD and RXD. 3.3 V logic; no level shifter needed. See `firmware/fis_can.h` and firmware README.
 
 | GPIO   | Signal         | Direction | Notes                    |
 |--------|----------------|-----------|---------------------------|
 | GPIO11 | FIS_CAN_PIN_TX | Out       | TX CAN to MCP2561 TXD     |
 | GPIO12 | FIS_CAN_PIN_RX | In        | RX CAN from MCP2561 RXD   |
 
-MCP2561 CANH/CANL connect to vehicle comfort/infotainment CAN (100 kbit/s). For when to add a 120 ohm termination (tapped in middle vs replacing radio vs bench), see firmware README.
+MCP2561 CANH/CANL connect to the vehicle Komfort-CAN (Comfort CAN / K-CAN, 100 kbit/s). For when to add a 120 ohm termination (tapped in middle vs replacing radio vs bench), see firmware README.
+
+**PQ46 CAN buses:** The Komfort-CAN is distinct from the other two CAN buses on the platform:
+
+| Bus | Bit rate | Typical traffic |
+|-----|----------|------------------|
+| **Komfort-CAN** (K-CAN) | 100 kbit/s | Instrument cluster, convenience modules, gateway; messages like mKombi_1, mDiagnose_1 |
+| **Antriebs-CAN** (ACAN / Drivetrain CAN) | 500 kbit/s | Engine, ABS, airbag, gearbox |
+| **Infotainment-CAN** (ICAN) | 100 kbit/s | Radio, navigation, phone module |
+
+The **CAN gateway (J533)** sits between these buses and bridges messages as needed. When your Pico (via MCP2561) taps into the bus to read or send messages such as mKombi_1, mDiagnose_1, etc., it is connecting to the **Komfort-CAN** (K-CAN), not to ACAN or ICAN.
 
 ### 5.7 Cluster Coding Prerequisite
 
@@ -509,7 +515,7 @@ GraphicFromArray(x, y, width, height, array, 0); // 0 = flash/PROGMEM
 
 The **original VW radio** set the instrument cluster time via the **CAN bus** (CAN-H / CAN-L), using time it received from the **FM RDS network**. This project does **not** use CAN for the clock; the Pico sets the FIS clock from GPS (Navit) over serial and 3LB only. The following is documented for reference.
 
-**OEM messages not implemented:** The specific CAN messages below (mDiagnose_1, mEinheiten) are not implemented. The firmware does support optional CAN bus (MCP2561, disabled by default); the FIS clock is driven solely by the serial protocol (NAV:TIME, timezone conversion, and 3LB injection) described earlier.
+**OEM messages implemented:** When CAN is enabled (`CFG:CAN:1`), the firmware sends **mDiagnose_1** (0x7D0) with local date/time derived from GPS (NAV:TIME + position for timezone) every 1000 ms, and **mEinheiten** (0x60E) with display format (24 h, EU date, units). The cluster can use mDiagnose_1 to set its internal clock. The FIS clock display is still driven by the serial protocol and 3LB injection; mDiagnose_1 allows the cluster’s own time display to stay in sync when CAN is connected.
 
 | Message | CAN ID | Length | Period | Description |
 |---------|--------|--------|--------|-------------|
@@ -542,7 +548,7 @@ Sent cyclically every 1000 ms.
 
 ### 6.4 Other potentially useful CAN messages (reference only)
 
-The following CAN frames are not yet implemented in the firmware. They are documented for reference. The firmware supports optional CAN bus (MCP2561, disabled by default) for future use (e.g. to read cluster/vehicle state or adapt FIS output).
+**mDiagnose_1** and **mEinheiten** are implemented and sent when CAN is enabled (see 6.3). The following CAN frames are not yet implemented; they are documented for reference. You can add handling for these or other IDs using `fis_can_send()` / `fis_can_receive()`.
 
 **Useful for FIS/display**
 
@@ -670,7 +676,7 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 - Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`)
 - Reads `NAV:*`, `BT:*`, and `CFG:*` messages from both interfaces non-blocking
 - Updates shared `nav_state_t` and feature toggles (`fis_config_t`) under a critical section
-- When CAN is enabled (`CFG:CAN:1`), runs optional CAN poll (firmware supports CAN; stub until MCP2561 driver is completed)
+- When CAN is enabled (`CFG:CAN:1`), runs CAN poll (firmware has full CAN support: send/receive at 100 kbit/s via MCP2561 on GPIO 11/12)
 
 **Core 1:**
 - Monitors 3LB ENA/CLK/DATA via PIO SM0 (RX sniffer)

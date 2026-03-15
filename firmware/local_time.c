@@ -123,3 +123,22 @@ bool local_time_format_eta(uint32_t unix_ts, tz_coord_t lat_centideg, tz_coord_t
     (void)snprintf(out_buf, buf_len, "ARR%02d:%02d", lh, lmin);
     return true;
 }
+
+bool local_time_get_local_components(const char *utc_iso8601, tz_coord_t lat_centideg, tz_coord_t lon_centideg,
+                                    int *year, int *month, int *day, int *hour, int *min, int *sec) {
+    if (!utc_iso8601 || !year || !month || !day || !hour || !min || !sec)
+        return false;
+    int uy, umo, ud, uh, umi, us;
+    if (!local_time_parse_iso8601_utc(utc_iso8601, &uy, &umo, &ud, &uh, &umi, &us))
+        return false;
+    int ri = tz_lookup_rule_idx(lat_centideg, lon_centideg);
+    if (ri < 0) {
+        *year = uy; *month = umo; *day = ud;
+        *hour = uh; *min = umi; *sec = us;
+        return true;
+    }
+    const tz_rule_t *rule = tz_get_rule((uint8_t)ri);
+    if (!rule) return false;
+    tz_utc_to_local(rule, uy, umo, ud, uh, umi, us, year, month, day, hour, min, sec);
+    return true;
+}

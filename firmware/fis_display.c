@@ -84,7 +84,7 @@
      if (!pio_sm_is_tx_fifo_empty(s_pio, s_sm)) {
          return false;
      }
-     return (s_pio->fdebug & (1u << (PIO_FDEBUG_TXOV_BITS + s_sm))) != 0u;
+     return (s_pio->fdebug & (1u << (PIO_FDEBUG_TXOVER_LSB + s_sm))) != 0u;
  }
 
  /* Send claim/clear screen (0x53): fullscreen 64x88, normal color. */

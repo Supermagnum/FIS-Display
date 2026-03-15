@@ -24,4 +24,9 @@ void local_time_format_date_short(int year, int month, int day, char *out_buf, s
 bool local_time_format_eta(uint32_t unix_ts, tz_coord_t lat_centideg, tz_coord_t lon_centideg,
                            char *out_buf, size_t buf_len);
 
+/* Parse UTC from ISO8601, convert to local using position; fill year/month/day/hour/min/sec.
+ * Returns true on success. Used e.g. for OEM CAN mDiagnose_1 (cluster time). */
+bool local_time_get_local_components(const char *utc_iso8601, tz_coord_t lat_centideg, tz_coord_t lon_centideg,
+                                     int *year, int *month, int *day, int *hour, int *min, int *sec);
+
 #endif

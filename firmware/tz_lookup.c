@@ -3,6 +3,7 @@
  */
 
 #include "tz_lookup.h"
+#include <stddef.h>
 #include "tz_table.h"
 
 int tz_lookup_rule_idx(tz_coord_t lat_c, tz_coord_t lon_c) {

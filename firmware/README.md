@@ -49,14 +49,14 @@ All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V
 - `GPIO4` – `FIS_PIN_CLK_OUT` (CLK, PIO SM1 side-set, via level shifter)
 - `GPIO5` – `FIS_PIN_DATA_OUT` (DATA, PIO SM1 out_base, via level shifter)
 
-**Optional CAN (when enabled, MCP2561):** The CAN controller used is the MCP2561. It has only 2 signal connections to the Pico: TXD and RXD. 3.3 V; no level shifter needed. See `fis_can.h` for `FIS_CAN_PIN_*`.
+**Optional CAN (firmware has full support; when enabled, MCP2561):** The CAN transceiver is the MCP2561. Two signal connections to the Pico: TXD and RXD. 3.3 V; no level shifter needed. See `fis_can.h` for `FIS_CAN_PIN_*`.
 
 | GPIO   | Symbol            | Direction | Function              |
 |--------|-------------------|-----------|-----------------------|
 | GPIO11 | FIS_CAN_PIN_TX    | Out       | TX CAN -> MCP2561 TXD |
 | GPIO12 | FIS_CAN_PIN_RX    | In        | RX CAN <- MCP2561 RXD |
 
-MCP2561 TXD connects to Pico GPIO 11; MCP2561 RXD connects to Pico GPIO 12. MCP2561 CANH/CANL to vehicle comfort/infotainment CAN (100 kbit/s).
+MCP2561 TXD connects to Pico GPIO 11; MCP2561 RXD connects to Pico GPIO 12. MCP2561 CANH/CANL to the vehicle Komfort-CAN (Comfort CAN / K-CAN, 100 kbit/s).
 
 **USB:** Pico USB CDC for Navit/host protocol; also 5 V power (VSYS). No 12 V on the PCB.
 
@@ -100,17 +100,19 @@ When `NAV:TIME` and optionally `NAV:POS` are received, the Pico looks up the tim
 | `CFG:ETA:0` / `CFG:ETA:1` | ETA in local time on clock line 2 (e.g. ARR14:32) |
 | `CFG:COMPASS:0` / `CFG:COMPASS:1` | Compass heading on clock line 2 |
 | `CFG:REMAIN:0` / `CFG:REMAIN:1` | Remaining distance on clock line 2 |
-| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus support (default off). Set in `firmware/fis_config_defaults.h`; requires external CAN hardware; not on current PCB. |
+| `CFG:CAN:0` / `CFG:CAN:1` | CAN bus (full support: send/receive 100 kbit/s, default off). Enable when MCP2561 is fitted on GPIO 11/12. |
 
 ---
 
-### Optional CAN bus (disabled by default)
+### CAN bus (full support, disabled by default)
 
-CAN support is **off by default**; the default is defined in `firmware/fis_config_defaults.h` (`FIS_CAN_ENABLED_DEFAULT 0`). Enable at runtime with `CFG:CAN:1` only when external CAN hardware is fitted.
+The firmware has **full CAN bus support**: software CAN 2.0A at 100 kbit/s, send and receive standard 11-bit ID frames via MCP2561 on GPIO 11 (TX) and 12 (RX). CAN is **off by default**; the default is in `firmware/fis_config_defaults.h` (`FIS_CAN_ENABLED_DEFAULT 0`). Enable at runtime with `CFG:CAN:1` when MCP2561 hardware is connected.
 
-**Bit rate:** The B6 comfort/infotainment CAN runs at **100 kbit/s**, not 500 kbit/s.
+**Bit rate:** On the VW Passat B6 (PQ46) the bus between the instrument cluster and other modules is the **Komfort-CAN** (Comfort CAN, also K-CAN/KCAN). It runs at **100 kbit/s**, not 500 kbit/s. This is distinct from **Antriebs-CAN** (ACAN, 500 kbit/s; engine, ABS, gearbox) and **Infotainment-CAN** (ICAN, 100 kbit/s; radio, nav, phone). The CAN gateway (J533) bridges between all three. When the Pico/MCP2561 taps in to read or send messages (e.g. mKombi_1, mDiagnose_1), it is on the **Komfort-CAN**.
 
-**Hardware (when implementing):**
+**Implementation:** Software CAN 2.0A (11-bit ID) at 100 kbit/s: bit timing, CRC-15, and bit stuffing are implemented in `fis_can.c`. Use `fis_can_init()` (or rely on `fis_can_poll` when CAN is enabled), `fis_can_send(const fis_can_frame_t *frame)` to transmit, and `fis_can_receive(fis_can_frame_t *out)` to poll for received frames. Frame structure: `id` (11-bit), `rtr`, `dlc` (0–8), `data[8]`.
+
+**Hardware:**
 
 - **MCP2561** — CAN transceiver; only 2 signal connections to the Pico: **TXD** (GPIO 11) and **RXD** (GPIO 12). Connects to CAN-H/CAN-L on the bus side. Logic side is 3.3 V compatible; **no level shifter** needed (unlike the 3LB side).
 - **Termination:** See below; add 120 ohm non-inductive resistor only when your node is at a bus end.
@@ -149,7 +151,8 @@ firmware/
   nav_state.h          – nav_state_t, enums
   fis_config.h/.c           – Feature toggles (clock, ETA, compass, remain, CAN); set via CFG:* serial
   fis_config_defaults.h     – Build-time defaults; CAN disabled by default (FIS_CAN_ENABLED_DEFAULT 0)
-  fis_can.h/.c              – Optional CAN bus (default off); stub for future MCP2561 (GPIO 11 TX, GPIO 12 RX, 100 kbit/s)
+  fis_can.h/.c              – Optional CAN bus (default off); software CAN 2.0A at 100 kbit/s, MCP2561 on GPIO 11 (TX) and 12 (RX)
+  fis_can_oem.h/.c          – PQ46 OEM messages: mDiagnose_1 (0x7D0, time from GPS), mEinheiten (0x60E, display format), sent every 1 s when CAN enabled
   fis_bridge.c         – main(), dual-core, decision loop
   tz_table.h/.c        – Timezone bounding boxes and DST rules (flash)
   tz_lookup.h/.c       – Timezone lookup by lat/lon, DST and UTC→local
@@ -166,6 +169,35 @@ firmware/
 - Raspberry Pi Pico SDK installed and `PICO_SDK_PATH` set (or SDK at default location).
 - CMake 3.13+ and ARM GCC toolchain (`arm-none-eabi-gcc`). See [Raspberry Pi Pico SDK documentation](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) for setup.
 
+**Installing the Pico SDK (if missing)**
+
+The SDK is not bundled with this project. Install it as follows.
+
+1. **Clone the SDK** (choose a permanent location, e.g. `$HOME/pico`):
+
+   ```bash
+   mkdir -p ~/pico && cd ~/pico
+   git clone https://github.com/raspberrypi/pico-sdk.git
+   cd pico-sdk
+   git submodule update --init
+   ```
+
+2. **Set `PICO_SDK_PATH`** so this project can find the SDK. Add to your shell config (e.g. `~/.bashrc` or `~/.zshrc`):
+
+   ```bash
+   export PICO_SDK_PATH=$HOME/pico/pico-sdk
+   ```
+
+   Then run `source ~/.bashrc` (or `source ~/.zshrc`) or open a new terminal. Alternatively pass the path when configuring: `cmake .. -DPICO_SDK_PATH=$HOME/pico/pico-sdk`.
+
+3. **ARM toolchain (if not installed):**
+   - **Linux (Debian/Ubuntu):** `sudo apt install cmake gcc-arm-none-eabi`
+   - **Linux (Fedora):** `sudo dnf install cmake arm-none-eabi-gcc-cs`
+   - **macOS:** `brew install cmake arm-none-eabi-gcc`
+   - **Windows:** Use [MSYS2](https://www.msys2.org/) and `pacman -S mingw-w64-ucrt-x86_64-arm-none-eabi-gcc cmake make`, or the official Pico Windows toolchain.
+
+This repository includes `firmware/pico_sdk_import.cmake`, which uses `PICO_SDK_PATH` to locate the SDK; you do not need to copy any SDK files into this project.
+
 **Build (all platforms)**
 
 From the project root:
@@ -173,7 +205,9 @@ From the project root:
 ```bash
 cd firmware
 mkdir -p build && cd build
-cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
+# Set PICO_SDK_PATH to your SDK install (or pass -DPICO_SDK_PATH=... to cmake)
+export PICO_SDK_PATH=/path/to/pico-sdk   # e.g. ~/pico/pico-sdk or /opt/pico-sdk
+cmake ..
 make -j4
 ```
 
@@ -270,7 +304,7 @@ If you use a Pico as a probe or another debugger, you can flash the `.elf` or `.
 
 ### Runtime behaviour
 
-**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses `NAV:*`, `BT:*`, and `CFG:*` messages, updates shared `nav_state_t` and `fis_config_t` under a critical section. When CAN is enabled (`CFG:CAN:1`), calls `fis_can_poll` (stub until CAN hardware support is added).
+**Core 0:** Initialises USB CDC and BTstack SPP (`FIS-Bridge`, PIN `0000`). Polls both for newline-terminated lines, parses `NAV:*`, `BT:*`, and `CFG:*` messages, updates shared `nav_state_t` and `fis_config_t` under a critical section. When CAN is enabled (`CFG:CAN:1`), calls `fis_can_poll`, which initialises CAN GPIO if needed and drains received frames. Application code can call `fis_can_send()` and `fis_can_receive()` to transmit and receive standard 11-bit ID frames.
 
 **Core 1:** Runs the 3LB loop: monitors ENA for idle, snapshots `nav_state_t` and `fis_config_t`, then injects (in order of priority) call frame, nav frame, media frame, or clock frame (if clock enabled and GPS time available); otherwise leaves bus to the ECU.
 
