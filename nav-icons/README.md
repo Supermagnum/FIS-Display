@@ -54,6 +54,16 @@ python3 tools/svg_to_fis_icon.py nav-icons/nav_my_icon_bk.svg --name MY_CUSTOM_N
 - **By index:** Call `fis_display_inject_icon(index)` with the new icon’s index (same order as in `FIS_ICON_TABLE`; the new icon is at `FIS_ICON_COUNT - 1`).
 - **By maneuver (navigation):** If the icon should be shown for a specific Navit maneuver, add a case in `fis_maneuver_to_icon_index()` in `firmware/fis_display.c` that maps the maneuver string to this index.
 
+## Regenerating all icon data
+
+If the icon arrays in `firmware/fis_nav_icons.h` are placeholders (512 bytes of zeros each), the conversion step was never applied. From the project root you can regenerate all arrays from the SVGs in this folder in one go:
+
+```bash
+python3 tools/regenerate_nav_icons.py
+```
+
+This runs `svg_to_fis_icon.py` for each icon in `FIS_ICON_TABLE` order and rewrites the icon data section of the header. The table and `FIS_ICON_COUNT` are left unchanged.
+
 ## Existing icons
 
 The repo ships with 38 icons: navigation maneuvers (left, right, roundabout, exit, merge, etc.) and status (routing, recalculating, no_route, etc.). Their names and order are defined in `FIS_ICON_TABLE` in `firmware/fis_nav_icons.h`.

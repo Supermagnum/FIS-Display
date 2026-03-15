@@ -60,7 +60,7 @@ PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files 
   - [5.2 The 3LB (Three-Line Bus)](#52-the-3lb-three-line-bus)
   - [5.3 Level Shifting](#53-level-shifting)
   - [5.4 Instrument Cluster Connector (Green T32a)](#54-instrument-cluster-connector-green-t32a)
-  - [5.5 Inline PCB Connector](#55-inline-pcb-connector)
+  - [5.5 3LB connection: pigtails or wire-to-wire (Molex kit)](#55-3lb-connection-pigtails-or-wire-to-wire-molex-kit)
   - [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)
   - [5.7 Cluster Coding Prerequisite](#57-cluster-coding-prerequisite)
 - [6. The 3LB Protocol](#6-the-3lb-protocol)
@@ -428,20 +428,26 @@ BS170 pinout (flat face toward you, left to right): **Source — Gate — Drain*
 
 Connector type: Kostal MLK 1.2 / MQS 0.63 mm. Use a VAG pin tool to back-probe terminals.
 Do not cut harness wires unless you are absolutely sure what you are doing.
-One can cut the wires needed, add female and male that can connect together or to ECU and gauge cluster side connectors on the PCBs headers. Then it easy to remove the pcb for repairs and restore original function.
+One option is to cut the harness wires needed and add connectors so you can plug the PCB in line; then you can unplug both sides and connect them directly to bypass the board for repairs or to restore original function. Use the Molex 3-circuit kit (see below) for pigtails from the PCB or for a pure wire-to-wire connection.
 
-### 5.5 Inline PCB Connector
+### 5.5 3LB connection: pigtails or wire-to-wire (Molex kit)
 
-JST PH 2.00 mm pitch, 3-position, one pair each side. Makes the PCB fully removable —
-unplug both sides and connect them directly to bypass the board.
+No PCB-mounted connector. Use one **Molex 3-circuit connector kit** (DigiKey **23-0766500064-ND**, Molex **0766500064**, "KIT CONN STD .062" 3 CIRCUITS"). The kit is the complete solution for both PCB pigtails and wire-to-wire.
+
+**With PCB (pigtails):** Solder two short pigtail wires directly to the PCB RX and TX pad areas. On the free end of each pigtail, crimp the correct connector from the kit:
+
+| Side | PCB pad | Free end (from kit) |
+|------|---------|---------------------|
+| **RX** | Solder wire to PCB RX pads | Female receptacle housing **0003061038** with socket terminals **0002061103** |
+| **TX** | Solder wire to PCB TX pads | Plug housing **0003062033** with pin terminals **0002062103** |
+
+Incoming field cables then plug into those pigtails — female into male, male into female. The different housing genders prevent swapping RX and TX.
+
+**Wire-to-wire (no PCB):** To connect two cables with no board in between, plug the kit female receptacle housing directly into the male plug housing. No PCB, no soldering, no extra parts.
 
 | Part | DigiKey P/N | Qty |
 |------|-------------|-----|
-| JST PHR-3 receptacle housing | 455-1705-ND | 2 |
-| JST B3B-PH-K PCB header (0.079"/2.00 mm pitch, single row) | 455-1126-ND | 2 |
-| JST SPH-002T-P0.5S crimp terminals (24–32 AWG) | 455-2148TR-ND | 6 |
-
-Any 3-position single-row 2.00 mm pitch THT header is a suitable alternative for the PCB header.
+| Molex 3-circuit connector kit (.062" / 1.57 mm) | 23-0766500064-ND | 1 |
 
 ### 5.6 Pico 2 W GPIO Pinout
 

@@ -132,7 +132,7 @@ To check: measure resistance between CAN-H and CAN-L with everything powered off
 
 **Level shifters:** 6x BS170 (TO-92, THT), one per 3LB line (3 RX + 3 TX). Two 2.2 kOhm non-inductive pull-ups per channel (3.3 V and 5 V), e.g. metal film or SMD thick/thin film (avoid wirewound). See `BOM.md`.
 
-**Inline connectors:** JST PH 2.00 mm, 3-position; one pair each side (cluster and harness). PHR-3 housing, B3B-PH-K header, SPH-002T-P0.5S crimps (24–32 AWG).
+**3LB connection:** One Molex 3-circuit kit (DigiKey 23-0766500064-ND). Either solder short pigtails to the PCB RX/TX pads and crimp kit housings on the free end (RX: female receptacle 0003061038 + sockets 0002061103; TX: plug 0003062033 + pins 0002062103), or use the kit for wire-to-wire only (plug female into male). See BOM and main README section 5.5.
 
 **Cluster:** Tap 3LB at green T32a — pin 30 DATA, 31 CLK, 32 ENA. Pico RX/TX connect in parallel through level shifters; no relay or analog switch.
 

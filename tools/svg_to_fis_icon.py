@@ -166,6 +166,13 @@ def main() -> None:
     bytes_data = png_to_1bit_bytes(png_path)
     png_path.unlink(missing_ok=True)
 
+    if len(bytes_data) == BYTES_TOTAL and all(b == 0 for b in bytes_data):
+        sys.exit(
+            "Icon data is all zeros (512 bytes). The SVG was not converted properly: "
+            "check that the SVG has visible black/dark content, that rendering succeeded, "
+            "and that you are not referencing a different/empty array in the header."
+        )
+
     symbol_suffix = args.name if args.name else basename_to_c_name(args.svg.stem)
     source_comment = args.svg.name
     c_source = emit_c_array(symbol_suffix, bytes_data, source_comment)
