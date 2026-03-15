@@ -2,6 +2,7 @@
 build/
 firmware/build/
 firmware-display-test/build/
+firmware-display-test/build2/
 
 # Editor / temp
 .~lock.*
