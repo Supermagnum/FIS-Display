@@ -66,4 +66,4 @@ This runs `svg_to_fis_icon.py` for each icon in `FIS_ICON_TABLE` order and rewri
 
 ## Existing icons
 
-The repo ships with 38 icons: navigation maneuvers (left, right, roundabout, exit, merge, etc.) and status (routing, recalculating, no_route, etc.). Their names and order are defined in `FIS_ICON_TABLE` in `firmware/fis_nav_icons.h`.
+The repo ships with 39 icons: navigation maneuvers (left, right, roundabout, exit, merge, etc.), status (routing, recalculating, no_route, etc.), and **nav_eco_mode** for eco mode in the [driver-break plugin](https://github.com/Supermagnum/navit/tree/feature/driver-break/docs/user/plugins/driver-break) (Navit). Their names and order are defined in `FIS_ICON_TABLE` in `firmware/fis_nav_icons.h`.

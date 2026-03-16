@@ -198,10 +198,13 @@ void fis_display_inject_icon(uint8_t icon_index) {
      if (strcmp(buf, "roundabout") == 0 || strcmp(buf, "rndabout") == 0 ||
          strcmp(buf, "roundabout_l1") == 0) return 13;
      if (strcmp(buf, "straight") == 0) return 29;
-     if (strcmp(buf, "turnaround_left") == 0 || strcmp(buf, "turn_around_left") == 0) return 30;
-     if (strcmp(buf, "turnaround_right") == 0 || strcmp(buf, "turn_around_right") == 0) return 31;
-     return -1;
- }
+    if (strcmp(buf, "turnaround_left") == 0 || strcmp(buf, "turn_around_left") == 0) return 30;
+    if (strcmp(buf, "turnaround_right") == 0 || strcmp(buf, "turn_around_right") == 0) return 31;
+    /* Eco mode: driver-break plugin. Host must send only when D-Bus says eco-mode engaged (ECU + energy routing);
+     * show briefly after route planning, then send real maneuver - must NOT override routing. See README 3.1. */
+    if (strcmp(buf, "eco_mode") == 0 || strcmp(buf, "eco") == 0) return 38;
+    return -1;
+}
 
 static void build_text_frame(const char *line0, const char *line1,
                              uint8_t *buf, size_t *len, size_t max_len) {

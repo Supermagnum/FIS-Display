@@ -52,6 +52,7 @@ PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files 
   - [2.4 Navigation Status Values](#24-navigation-status-values)
   - [2.5 D-Bus Listener to Pico Bridge Script](#25-d-bus-listener--pico-bridge-script)
 - [3. Serial Protocol (Host to Pico, 115200 baud)](#3-serial-protocol-host--pico-115200-baud-newline-terminated-ascii)
+  - [3.1 Eco mode icon (driver-break, D-Bus)](#31-eco-mode-icon-driver-break-d-bus)
 - [4. Transport — USB CDC or Bluetooth SPP](#4-transport--usb-cdc-or-bluetooth-spp)
   - [USB CDC](#usb-cdc)
   - [Bluetooth SPP](#bluetooth-spp)
@@ -330,7 +331,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 
 | Message | Meaning |
 |---------|---------|
-| `NAV:TURN:<code>` | Upcoming maneuver type |
+| `NAV:TURN:<code>` | Upcoming maneuver type. For eco icon (driver-break) see [3.1 Eco mode icon](#31-eco-mode-icon-driver-break-d-bus): use `eco_mode` or `eco` only when the correct D-Bus message arrives; it must **not** override routing instructions. |
 | `NAV:DIST:<metres>` | Distance to next turn |
 | `NAV:STREET:<n>` | Next street name (max 20 chars) |
 | `NAV:STATUS:<status>` | Navit routing status |
@@ -342,6 +343,37 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 | `BT:TRACK:<info>` | Media track info from head unit |
 | `BT:CALL:<caller>` | Incoming call caller ID |
 | `BT:CALLEND` | Call ended |
+
+### 3.1 Eco mode icon (driver-break, D-Bus)
+
+The **eco mode** icon on the FIS is intended for the [driver-break plugin](https://github.com/Supermagnum/navit/tree/feature/driver-break/docs/user/plugins/driver-break) when ECU/OBD-II support is available and fuel cost is included in energy-based routing. It must **never override routing instructions**: the host must only show the eco icon when appropriate and only for a short moment (e.g. after route planning finishes, before the first maneuver is displayed).
+
+**When to show the eco icon**
+
+- A D-Bus message (or attribute) indicates that eco mode is engaged (e.g. **"eco-mode engaged"** or equivalent).
+- **ECU support is enabled** (OBD-II / vehicle data available for the plugin).
+- **Navit has planned or finished planning** a route that uses fuel/energy cost (energy-based routing).
+- **Do not show eco when there is an active maneuver to display.** Example flow: when Navit finishes calculating a route and the above conditions are true, show the eco icon for a short period (e.g. 2–3 seconds), then send the actual first turn (`navigation_next_turn`) and distance so the FIS switches to normal turn-by-turn. The eco icon is an informational "route was planned with eco" hint, not a substitute for maneuver icons.
+
+**How to add D-Bus support**
+
+1. **Expose a D-Bus attribute or signal** from the driver-break plugin (or from Navit when the plugin is active) that the bridge can subscribe to. Examples:
+   - Attribute name: e.g. `eco_mode_engaged` (boolean) or `navigation_eco_mode_active` on the same D-Bus service/object as other Navit attributes (`org.navit_project.navit`).
+   - Alternatively a signal, e.g. `eco_mode_engaged` with a boolean or string payload, when the plugin has engaged eco mode (ECU data available, route uses fuel/energy).
+   - The plugin should set this to true only when: ECU/OBD-II data is available, and the current or just-calculated route includes fuel/energy cost in the cost function.
+
+2. **Bridge script logic** (in the same process that subscribes to `navigation_status`, `navigation_next_turn`, etc.):
+   - Subscribe to the new attribute/signal (e.g. `eco_mode_engaged` or `navigation_eco_mode_active`) in addition to the existing Navit attributes.
+   - Subscribe to `navigation_status` (and if needed `navigation_next_turn` / `navigation_distance_turn`) to know when a route is being calculated or is ready.
+   - **Policy:** Send `NAV:TURN:eco_mode` to the Pico only when:
+     - The eco attribute/signal indicates eco-mode engaged, and
+     - ECU support is enabled (plugin reports or config), and
+     - Route planning has just completed (e.g. `navigation_status` went to `routing`) or the route is ready and you are about to send the first maneuver.
+   - Then send `NAV:TURN:eco_mode` for a **short fixed duration** (e.g. 2–3 seconds), then immediately send the real first turn and distance (`NAV:TURN:<code>`, `NAV:DIST:<m>`) so the FIS shows the actual routing instruction. Never send or keep sending `eco_mode` when the user should see a turn icon (left, right, etc.).
+
+3. **Firmware behaviour:** The Pico does not implement timing or priority. It simply displays whatever `NAV:TURN` code the host last sent. So **the host is responsible** for never letting eco_mode override a maneuver: the bridge must only send `NAV:TURN:eco_mode` in the narrow window described above and then replace it with the real maneuver.
+
+**Summary:** Eco icon = show only when the correct D-Bus message (e.g. "eco-mode engaged") arrives, ECU support is on, and route uses fuel/energy; display it briefly after route planning, then always switch to the real first (and subsequent) routing instructions.
 
 **Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN bus has **full firmware support** (send/receive, 100 kbit/s, MCP2561) but is **disabled by default** (0).
 
@@ -719,6 +751,7 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 | PQ35/46 CAN K-Matrix (VW/Audi) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx |
 | PQ35/46 CAN Glossary (DE–EN) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_Glossary_DE_EN.md |
 | Navit D-Bus external dashboard spec | https://github.com/Supermagnum/navit/blob/feature/navit-dash/docs/development/navit_dbus_external_dashboards.rst |
+| Navit driver-break plugin (eco mode, etc.) | https://github.com/Supermagnum/navit/tree/feature/driver-break/docs/user/plugins/driver-break |
 | Navit project | https://github.com/navit-gps/navit |
 | TLBFISLib | https://github.com/domnulvlad/TLBFISLib |
 | VAGFISWriter | https://github.com/tomaskovacik/VAGFISWriter |
