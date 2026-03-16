@@ -865,6 +865,13 @@ The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_c
 - Multiple fonts
 - 262K colours
 - Fast SPI refresh with a native Pico C SDK driver (see display driver options above)
+- SD card slot
+
+For 50 animations, 4 seconds long at 25 fps 240×320 (full screen) the estimated space needed is:
+- 14.65 MB Per animation
+- 732 MB Total (worst case)
+- 366 MB Total (avg ~50% length)
+
 
 ---
 
