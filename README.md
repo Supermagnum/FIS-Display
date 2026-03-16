@@ -782,8 +782,8 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 MSP3222 — 3.2" IPS ILI9341
 
 PCB size 55.04×77.70mm, active area 48.6×64.8mm, IPS full viewing angle, 240×320, 262K colours, 4-wire SPI, operating temperature −30 to +80°C.
-Fits comfortably within the 67×85mm OEM space.
-TFT_eSPI library has full Pico (RP2040) support with DMA — fast updates.
+Fits comfortably within the 67×85mm OEM space with a small adapter frame.
+The TFT_eSPI library has full Pico (RP2040) support with DMA — fast updates.
 ILI9341 and ST7796 SPI based displays are recommended as starting points for TFT_eSPI.
 3.3V logic — direct connection to Pico, no level shifter.
 Optional capacitive touchscreen version (MSP3223) if you ever want touch input
