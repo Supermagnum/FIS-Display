@@ -20,6 +20,8 @@ A separate display-test firmware is provided for bench-testing the cluster witho
 
 PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files and Gerbers are in [pcb-files/](pcb-files/). See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing) for what they are and how to use them.
 
+![FIS Display PCB (3D)](pcb-files/FIS-display/FIS-display.png)
+
 > **Note:** The firmware in `firmware/` is **experimental and untested on a real vehicle**. Validate on the bench before connecting to the car. See [firmware/README.md](firmware/README.md) for build and flash instructions; that file also explains how to install the Raspberry Pi Pico SDK if it is missing.
 
 ## Gerber files and PCB manufacturing
