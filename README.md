@@ -87,7 +87,7 @@ This repository uses **no symlinks**; all paths are normal directories and files
 | [firmware-display-test/](firmware-display-test/) | Standalone display test firmware: cycles through all modes (nav text, icons, call, media, clock) every 4 seconds. |
 | [firmware-display-test/README.md](firmware-display-test/README.md) | How to build and use the display test. |
 | [nav-icons/](nav-icons/) | Navigation and status icon SVGs (sources for the bitmaps in `firmware/fis_nav_icons.h`). See [nav-icons/README.md](nav-icons/README.md) for adding new icons. |
-| [tools/](tools/) | Build/convert helpers. [tools/svg_to_fis_icon.py](tools/svg_to_fis_icon.py) converts SVG to the 64x64 1-bit C array format used by the firmware. |
+| [tools/](tools/) | Build/convert helpers. [tools/svg_to_fis_icon.py](tools/svg_to_fis_icon.py) converts SVG to the 64x64 1-bit C array format. [tools/navit_dbus_to_pico_bridge.py](tools/navit_dbus_to_pico_bridge.py) runs on the host and forwards Navit D-Bus (including eco_mode_fuel_enabled) to the Pico over serial. |
 | [PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx](PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx) | VW/Audi PQ35/46 CAN matrix (reference). |
 | [PQ35_46_ACAN_Glossary_DE_EN.md](PQ35_46_ACAN_Glossary_DE_EN.md) | German–English translation table for the CAN matrix document. |
 | [pcb-files/](pcb-files/) | PCB design (KiCad) and [Gerber files](pcb-files/FIS-display/gerbers/) for manufacturing. See [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing). |
@@ -218,13 +218,19 @@ Enable D-Bus in `navit.xml`:
 | `recalculating` | Rerouting |
 | `routing` | Active guidance |
 
-### 2.5 D-Bus Listener → Pico Bridge Script
+### 2.5 D-Bus Listener to Pico Bridge Script
 
-This script runs on the host device and forwards Navit D-Bus signals to the Pico over either
-USB CDC or Bluetooth SPP. Configure `SERIAL_PORT` to match your transport:
+A bridge script runs on the host device and forwards Navit D-Bus attributes to the Pico over USB CDC or Bluetooth SPP. This repo includes **`tools/navit_dbus_to_pico_bridge.py`**, which implements the protocol and **eco_mode_fuel_enabled** support (Driver Break plugin): when `get_attr("eco_mode_fuel_enabled")` is true and a route has just been calculated (`navigation_status` = `routing`), it sends the eco icon for a short period (default 2.5 s), then the real first turn and distance so the FIS never shows eco instead of routing.
 
-- USB CDC: typically `/dev/ttyACM0` (Linux/Android)
-- Bluetooth SPP: the rfcomm device created when paired to `FIS-Bridge`, e.g. `/dev/rfcomm0`
+**Run (host):**
+```bash
+python3 tools/navit_dbus_to_pico_bridge.py --port /dev/ttyACM0   # USB CDC
+python3 tools/navit_dbus_to_pico_bridge.py --port /dev/rfcomm0 --eco-seconds 2.5   # Bluetooth SPP
+```
+
+**Requirements:** Python 3, `pyserial`, PyGObject (`gi.repository.GLib`), `dbus`. Optional: Driver Break plugin in Navit for `eco_mode_fuel_enabled` (OBD-II / J1939 / MegaSquirt or adaptive fuel learning).
+
+**Inline example (minimal, no eco logic)** for reference:
 
 ```python
 #!/usr/bin/env python3
@@ -323,6 +329,8 @@ if __name__ == "__main__":
     NavitBridge().run()
 ```
 
+For full behaviour including eco icon when `eco_mode_fuel_enabled` is true, use **`tools/navit_dbus_to_pico_bridge.py`** (see above).
+
 ---
 
 ## 3. Serial Protocol (Host → Pico, 115200 baud, newline-terminated ASCII)
@@ -331,7 +339,7 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 
 | Message | Meaning |
 |---------|---------|
-| `NAV:TURN:<code>` | Upcoming maneuver type. For eco icon (driver-break) see [3.1 Eco mode icon](#31-eco-mode-icon-driver-break-d-bus): use `eco_mode` or `eco` only when the correct D-Bus message arrives; it must **not** override routing instructions. |
+| `NAV:TURN:<code>` | Upcoming maneuver type. For eco icon (driver-break) see [3.1 Eco mode icon](#31-eco-mode-icon-driver-break-d-bus): use `eco_mode` or `eco` only when `eco_mode_fuel_enabled` is true and route is ready (see 3.1); it must **not** override routing instructions. |
 | `NAV:DIST:<metres>` | Distance to next turn |
 | `NAV:STREET:<n>` | Next street name (max 20 chars) |
 | `NAV:STATUS:<status>` | Navit routing status |
@@ -346,34 +354,32 @@ The same protocol is used regardless of whether the transport is USB CDC or Blue
 
 ### 3.1 Eco mode icon (driver-break, D-Bus)
 
-The **eco mode** icon on the FIS is intended for the [driver-break plugin](https://github.com/Supermagnum/navit/tree/feature/driver-break/docs/user/plugins/driver-break) when ECU/OBD-II support is available and fuel cost is included in energy-based routing. It must **never override routing instructions**: the host must only show the eco icon when appropriate and only for a short moment (e.g. after route planning finishes, before the first maneuver is displayed).
+The **eco mode** icon on the FIS is intended for the [Driver Break plugin](https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/index.rst) when fuel/energy is used in routing (ECU or adaptive fuel data). It must **never override routing instructions**: the host must only show the eco icon when appropriate and only for a short moment (e.g. after route planning finishes, before the first maneuver is displayed).
+
+**Driver-break D-Bus attribute: `eco_mode_fuel_enabled`**
+
+The plugin exposes a boolean attribute **eco_mode_fuel_enabled** on the Navit D-Bus interface. It is **true** when either (1) an ECU backend is available and running (OBD-II, J1939, or MegaSquirt), or (2) adaptive fuel learning is enabled in the plugin configuration. When **false**, no live ECU data and no adaptive learning are in use (energy-based routing may still be available without fuel data). See the [Driver Break D-Bus API (eco_mode_fuel_enabled)](https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/dbus.rst) for service, object path, interface, and examples in Python and `dbus-send`.
+
+- **Service:** `org.navit_project.navit`
+- **Method:** `get_attr("eco_mode_fuel_enabled")` on the navit object; returns `(attrname, value)` with a D-Bus boolean.
 
 **When to show the eco icon**
 
-- A D-Bus message (or attribute) indicates that eco mode is engaged (e.g. **"eco-mode engaged"** or equivalent).
-- **ECU support is enabled** (OBD-II / vehicle data available for the plugin).
-- **Navit has planned or finished planning** a route that uses fuel/energy cost (energy-based routing).
-- **Do not show eco when there is an active maneuver to display.** Example flow: when Navit finishes calculating a route and the above conditions are true, show the eco icon for a short period (e.g. 2–3 seconds), then send the actual first turn (`navigation_next_turn`) and distance so the FIS switches to normal turn-by-turn. The eco icon is an informational "route was planned with eco" hint, not a substitute for maneuver icons.
+- **`eco_mode_fuel_enabled` is true** (ECU running or adaptive fuel learning enabled).
+- **Navit has planned or finished planning** a route that uses energy-based routing (fuel cost in the cost function).
+- **Do not show eco when there is an active maneuver to display.** Example flow: when Navit finishes calculating a route and the above conditions are true, show the eco icon for a short period (e.g. 2–3 seconds), then send the actual first turn (`navigation_next_turn`) and distance so the FIS switches to normal turn-by-turn. The eco icon is an informational "route was planned with eco/fuel" hint, not a substitute for maneuver icons.
 
-**How to add D-Bus support**
+**Bridge script logic**
 
-1. **Expose a D-Bus attribute or signal** from the driver-break plugin (or from Navit when the plugin is active) that the bridge can subscribe to. Examples:
-   - Attribute name: e.g. `eco_mode_engaged` (boolean) or `navigation_eco_mode_active` on the same D-Bus service/object as other Navit attributes (`org.navit_project.navit`).
-   - Alternatively a signal, e.g. `eco_mode_engaged` with a boolean or string payload, when the plugin has engaged eco mode (ECU data available, route uses fuel/energy).
-   - The plugin should set this to true only when: ECU/OBD-II data is available, and the current or just-calculated route includes fuel/energy cost in the cost function.
+1. **Read the attribute** (e.g. on a timer or when `navigation_status` changes): call `get_attr("eco_mode_fuel_enabled")` on the navit object (see [dbus.rst](https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/dbus.rst) for object path and Python/dbus-send examples).
+2. **Policy:** Send `NAV:TURN:eco_mode` to the Pico only when:
+   - `eco_mode_fuel_enabled` is true, and
+   - Route planning has just completed (e.g. `navigation_status` went to `routing`) or the route is ready and you are about to send the first maneuver.
+3. Send `NAV:TURN:eco_mode` for a **short fixed duration** (e.g. 2–3 seconds), then immediately send the real first turn and distance (`NAV:TURN:<code>`, `NAV:DIST:<m>`) so the FIS shows the actual routing instruction. Never send or keep sending `eco_mode` when the user should see a turn icon (left, right, etc.).
 
-2. **Bridge script logic** (in the same process that subscribes to `navigation_status`, `navigation_next_turn`, etc.):
-   - Subscribe to the new attribute/signal (e.g. `eco_mode_engaged` or `navigation_eco_mode_active`) in addition to the existing Navit attributes.
-   - Subscribe to `navigation_status` (and if needed `navigation_next_turn` / `navigation_distance_turn`) to know when a route is being calculated or is ready.
-   - **Policy:** Send `NAV:TURN:eco_mode` to the Pico only when:
-     - The eco attribute/signal indicates eco-mode engaged, and
-     - ECU support is enabled (plugin reports or config), and
-     - Route planning has just completed (e.g. `navigation_status` went to `routing`) or the route is ready and you are about to send the first maneuver.
-   - Then send `NAV:TURN:eco_mode` for a **short fixed duration** (e.g. 2–3 seconds), then immediately send the real first turn and distance (`NAV:TURN:<code>`, `NAV:DIST:<m>`) so the FIS shows the actual routing instruction. Never send or keep sending `eco_mode` when the user should see a turn icon (left, right, etc.).
+**Firmware behaviour:** The Pico displays whatever `NAV:TURN` code the host last sent. The **host is responsible** for never letting eco_mode override a maneuver: the bridge must only send `NAV:TURN:eco_mode` in the narrow window described above and then replace it with the real maneuver.
 
-3. **Firmware behaviour:** The Pico does not implement timing or priority. It simply displays whatever `NAV:TURN` code the host last sent. So **the host is responsible** for never letting eco_mode override a maneuver: the bridge must only send `NAV:TURN:eco_mode` in the narrow window described above and then replace it with the real maneuver.
-
-**Summary:** Eco icon = show only when the correct D-Bus message (e.g. "eco-mode engaged") arrives, ECU support is on, and route uses fuel/energy; display it briefly after route planning, then always switch to the real first (and subsequent) routing instructions.
+**Summary:** Eco icon = show only when `eco_mode_fuel_enabled` is true and route planning has just finished; display it briefly, then always switch to the real first (and subsequent) routing instructions.
 
 **Feature toggles (clock screen):** Send `CFG:<name>:0` or `CFG:<name>:1` to enable or disable what is shown. Clock/ETA/compass/remain default to 1 (on). CAN bus has **full firmware support** (send/receive, 100 kbit/s, MCP2561) but is **disabled by default** (0).
 
@@ -751,7 +757,8 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 | PQ35/46 CAN K-Matrix (VW/Audi) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_KMatrix_V5.20.6F_20160530_MH.xlsx |
 | PQ35/46 CAN Glossary (DE–EN) | https://github.com/Supermagnum/FIS-Display/blob/main/PQ35_46_ACAN_Glossary_DE_EN.md |
 | Navit D-Bus external dashboard spec | https://github.com/Supermagnum/navit/blob/feature/navit-dash/docs/development/navit_dbus_external_dashboards.rst |
-| Navit driver-break plugin (eco mode, etc.) | https://github.com/Supermagnum/navit/tree/feature/driver-break/docs/user/plugins/driver-break |
+| Navit driver-break plugin (index) | https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/index.rst |
+| Navit driver-break D-Bus API (eco_mode_fuel_enabled) | https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/dbus.rst |
 | Navit project | https://github.com/navit-gps/navit |
 | TLBFISLib | https://github.com/domnulvlad/TLBFISLib |
 | VAGFISWriter | https://github.com/tomaskovacik/VAGFISWriter |
