@@ -13,6 +13,7 @@ This repository provides firmware, PCB design, and documentation to show Navit n
 
 A host device runs Navit with D-Bus and sends a simple serial protocol to a Raspberry Pi Pico 2 W over USB or Bluetooth (pair once as FIS-Bridge). 
 The Pico injects frames onto the car's 3LB bus during idle gaps so the cluster shows turn-by-turn directions, street name, distance, and maneuver icons; when not navigating, it can show media track info, incoming call caller ID, or a clock screen with GPS time, ETA (e.g. ARR 14:32), remaining distance, and compass heading. 
+
 The firmware supports CAN bus (MCP2561 on GPIO 11/12, 100 kbit/s, software CAN 2.0A send/receive); it is disabled by default and can be enabled with CFG:CAN:1. The Pico is a middleman only; all navigation logic stays on the host. When CAN bus is enabled, it can adjust your clock automatically. 
 
 A separate display-test firmware is provided for bench-testing the cluster without a Navit host.
@@ -157,12 +158,12 @@ This repository uses **no symlinks**; all paths are normal directories and files
 
 The Pico 2 W is a **pure middleman**. It has no navigation intelligence — it only receives
 the serial protocol from the host device and injects the translated frames onto the 3LB bus.
+
 All navigation logic stays on the host device running Navit. Optionally, when CAN is enabled
 (see [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)), the Pico can communicate with the
 vehicle Komfort-CAN (Comfort CAN / K-CAN, 100 kbit/s) via GPIO 11/12 to the MCP2561 (TXD/RXD only).
 
-The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico
-co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
+The original ECU continues to talk to the FIS/MFA natively over 3LB at all times. The Pico co-exists on the bus using the ENA line for arbitration — no relay or analog switch is needed.
 
 > **Note:** The OEM radio has been replaced with an aftermarket head unit. The head unit does
 > **not** communicate over 3LB. Only the original ECU talks to the FIS/MFA natively over 3LB.
