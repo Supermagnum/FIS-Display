@@ -872,6 +872,10 @@ For 50 animations, 4 seconds long at 25 fps 240×320 (full screen) the estimated
 - 732 MB Total (worst case)
 - 366 MB Total (avg ~50% length)
 
+Suggested software for animations:
+https://www.synfig.org/
+https://pixelorama.org/
+
 
 ---
 
