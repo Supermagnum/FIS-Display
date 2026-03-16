@@ -1,6 +1,44 @@
 # FIS-Display
 VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 
+
+## Table of contents
+
+- [Disclaimer](#disclaimer)
+- [What this project does](#what-this-project-does)
+- [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing)
+- [Project structure](#project-structure)
+- [1. System Overview](#1-system-overview)
+- [2. Host Device — Navit with D-Bus](#2-host-device--navit-with-d-bus)
+  - [2.1 Supported Platforms](#21-supported-platforms)
+  - [2.2 D-Bus Service Details](#22-d-bus-service-details)
+  - [2.3 Key Attributes to Subscribe To](#23-key-attributes-to-subscribe-to)
+  - [2.4 Navigation Status Values](#24-navigation-status-values)
+  - [2.5 D-Bus Listener to Pico Bridge Script](#25-d-bus-listener--pico-bridge-script)
+- [3. Serial Protocol (Host to Pico, 115200 baud)](#3-serial-protocol-host--pico-115200-baud-newline-terminated-ascii)
+  - [3.1 Eco mode icon (driver-break, D-Bus)](#31-eco-mode-icon-driver-break-d-bus)
+- [4. Transport — USB CDC or Bluetooth SPP](#4-transport--usb-cdc-or-bluetooth-spp)
+  - [USB CDC](#usb-cdc)
+  - [Bluetooth SPP](#bluetooth-spp)
+- [5. Hardware](#5-hardware)
+  - [5.1 Controller — Raspberry Pi Pico 2 W](#51-controller--raspberry-pi-pico-2-w)
+  - [5.2 The 3LB (Three-Line Bus)](#52-the-3lb-three-line-bus)
+  - [5.3 Level Shifting](#53-level-shifting)
+  - [5.4 Instrument Cluster Connector (Green T32a)](#54-instrument-cluster-connector-green-t32a)
+  - [5.5 3LB connection: pigtails or wire-to-wire (Molex kit)](#55-3lb-connection-pigtails-or-wire-to-wire-molex-kit)
+  - [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)
+  - [5.7 Cluster Coding Prerequisite](#57-cluster-coding-prerequisite)
+- [6. The 3LB Protocol](#6-the-3lb-protocol)
+  - [6.1 Open Source Libraries (Reference)](#61-open-source-libraries-reference)
+  - [6.2 Display](#62-display)
+  - [6.3 OEM radio: CAN time and display (reference only)](#63-oem-radio-can-time-and-display-reference-only)
+  - [6.4 Other potentially useful CAN messages (reference only)](#64-other-potentially-useful-can-messages-reference-only)
+- [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
+- [8. Software Stack Summary](#8-software-stack-summary)
+- [9. Key References](#9-key-references)
+- [10. Possible screen upgrade (MSP3222)](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
+
+---
 ## Disclaimer
 
 > The creator takes no responsibility for damages, immobile car, injury, or any other loss arising from the use of this project, its firmware, PCB design, or documentation. Use at your own risk.
@@ -47,43 +85,7 @@ PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files 
 
 ---
 
-## Table of contents
 
-- [Disclaimer](#disclaimer)
-- [What this project does](#what-this-project-does)
-- [Gerber files and PCB manufacturing](#gerber-files-and-pcb-manufacturing)
-- [Project structure](#project-structure)
-- [1. System Overview](#1-system-overview)
-- [2. Host Device — Navit with D-Bus](#2-host-device--navit-with-d-bus)
-  - [2.1 Supported Platforms](#21-supported-platforms)
-  - [2.2 D-Bus Service Details](#22-d-bus-service-details)
-  - [2.3 Key Attributes to Subscribe To](#23-key-attributes-to-subscribe-to)
-  - [2.4 Navigation Status Values](#24-navigation-status-values)
-  - [2.5 D-Bus Listener to Pico Bridge Script](#25-d-bus-listener--pico-bridge-script)
-- [3. Serial Protocol (Host to Pico, 115200 baud)](#3-serial-protocol-host--pico-115200-baud-newline-terminated-ascii)
-  - [3.1 Eco mode icon (driver-break, D-Bus)](#31-eco-mode-icon-driver-break-d-bus)
-- [4. Transport — USB CDC or Bluetooth SPP](#4-transport--usb-cdc-or-bluetooth-spp)
-  - [USB CDC](#usb-cdc)
-  - [Bluetooth SPP](#bluetooth-spp)
-- [5. Hardware](#5-hardware)
-  - [5.1 Controller — Raspberry Pi Pico 2 W](#51-controller--raspberry-pi-pico-2-w)
-  - [5.2 The 3LB (Three-Line Bus)](#52-the-3lb-three-line-bus)
-  - [5.3 Level Shifting](#53-level-shifting)
-  - [5.4 Instrument Cluster Connector (Green T32a)](#54-instrument-cluster-connector-green-t32a)
-  - [5.5 3LB connection: pigtails or wire-to-wire (Molex kit)](#55-3lb-connection-pigtails-or-wire-to-wire-molex-kit)
-  - [5.6 Pico 2 W GPIO Pinout](#56-pico-2-w-gpio-pinout)
-  - [5.7 Cluster Coding Prerequisite](#57-cluster-coding-prerequisite)
-- [6. The 3LB Protocol](#6-the-3lb-protocol)
-  - [6.1 Open Source Libraries (Reference)](#61-open-source-libraries-reference)
-  - [6.2 Display](#62-display)
-  - [6.3 OEM radio: CAN time and display (reference only)](#63-oem-radio-can-time-and-display-reference-only)
-  - [6.4 Other potentially useful CAN messages (reference only)](#64-other-potentially-useful-can-messages-reference-only)
-- [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
-- [8. Software Stack Summary](#8-software-stack-summary)
-- [9. Key References](#9-key-references)
-- [10. Possible screen upgrade (MSP3222)](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
-
----
 
 ## Project structure
 
