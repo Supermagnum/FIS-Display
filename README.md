@@ -344,6 +344,7 @@ if __name__ == "__main__":
 
 For full behaviour including eco icon when `eco_mode_fuel_enabled` is true, use **`tools/navit_dbus_to_pico_bridge.py`** (see above).
 
+
 ---
 
 ## 3. Serial Protocol (Host → Pico, 115200 baud, newline-terminated ASCII)
@@ -382,6 +383,7 @@ The plugin exposes a boolean attribute **eco_mode_fuel_enabled** on the Navit D-
 - **Navit has planned or finished planning** a route that uses energy-based routing (fuel cost in the cost function).
 - **Do not show eco when there is an active maneuver to display.** Example flow: when Navit finishes calculating a route and the above conditions are true, show the eco icon for a short period (e.g. 2–3 seconds), then send the actual first turn (`navigation_next_turn`) and distance so the FIS switches to normal turn-by-turn. The eco icon is an informational "route was planned with eco/fuel" hint, not a substitute for maneuver icons.
 
+
 **Bridge script logic**
 
 1. **Read the attribute** (e.g. on a timer or when `navigation_status` changes): call `get_attr("eco_mode_fuel_enabled")` on the navit object (see [dbus.rst](https://github.com/Supermagnum/navit/blob/feature/driver-break/docs/user/plugins/driver-break/dbus.rst) for object path and Python/dbus-send examples).
@@ -389,6 +391,11 @@ The plugin exposes a boolean attribute **eco_mode_fuel_enabled** on the Navit D-
    - `eco_mode_fuel_enabled` is true, and
    - Route planning has just completed (e.g. `navigation_status` went to `routing`) or the route is ready and you are about to send the first maneuver.
 3. Send `NAV:TURN:eco_mode` for a **short fixed duration** (e.g. 2–3 seconds), then immediately send the real first turn and distance (`NAV:TURN:<code>`, `NAV:DIST:<m>`) so the FIS shows the actual routing instruction. Never send or keep sending `eco_mode` when the user should see a turn icon (left, right, etc.).
+   
+The driver break plugin is waiting for merging into the official github repo, its also awaiting testing on hardware.
+Read: https://github.com/navit-gps/navit/pull/1419
+
+   
 
 **Firmware behaviour:** The Pico displays whatever `NAV:TURN` code the host last sent. The **host is responsible** for never letting eco_mode override a maneuver: the bridge must only send `NAV:TURN:eco_mode` in the narrow window described above and then replace it with the real maneuver.
 
