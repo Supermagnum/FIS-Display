@@ -275,15 +275,17 @@ bool fis_can_receive(fis_can_frame_t *out) {
 #undef RX_BIT
 }
 
+void fis_can_ensure_init(void) {
+    if (!s_can_initialized)
+        fis_can_init();
+}
+
 void fis_can_poll(const fis_config_t *config) {
     if (!config || !config->can_enabled)
         return;
-    if (!s_can_initialized) {
-        fis_can_init();
-    }
+    fis_can_ensure_init();
     fis_can_frame_t frame;
     while (fis_can_receive(&frame)) {
-        /* Application can hook here; for now we just drain RX. */
         (void)frame;
     }
 }

@@ -11,10 +11,12 @@
 #include "fis_display.h"
 #include "fis_can.h"
 #include "fis_can_oem.h"
+#include "fis_can_rx.h"
 #include "serial_parser.h"
 
  static nav_state_t        g_nav_state;
  static fis_config_t       g_fis_config;
+ static fis_can_rx_state_t g_can_rx_state;
  static critical_section_t g_nav_lock;
 
  static void nav_state_init_struct(nav_state_t *s) {
@@ -83,6 +85,7 @@
  int main(void) {
      nav_state_init_struct(&g_nav_state);
      fis_config_set_defaults(&g_fis_config);
+     fis_can_rx_state_init(&g_can_rx_state);
      critical_section_init(&g_nav_lock);
 
      // Initialise serial I/O (USB CDC and Bluetooth SPP via BTstack).
@@ -95,10 +98,10 @@
      // Launch core 1 to run the 3LB loop.
      multicore_launch_core1(core1_3lb_loop);
 
-    // Core 0: handle serial input, config, CAN poll, and OEM CAN (mDiagnose_1, mEinheiten).
+    // Core 0: handle serial input, config, CAN RX parse, and OEM CAN TX (mDiagnose_1, mEinheiten).
     for (;;) {
         serial_parser_poll(&g_nav_state, &g_fis_config, &g_nav_lock);
-        fis_can_poll(&g_fis_config);
+        fis_can_rx_poll(&g_fis_config, &g_can_rx_state);
         {
             nav_state_t oem_state;
             critical_section_enter_blocking(&g_nav_lock);

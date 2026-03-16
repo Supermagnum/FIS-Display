@@ -29,6 +29,9 @@ typedef struct {
 /* Initialize CAN GPIO and timing. Safe to call multiple times; no-op if already init. */
 void fis_can_init(void);
 
+/* Ensure CAN is initialized (e.g. before RX poll in fis_can_rx). No-op if already init. */
+void fis_can_ensure_init(void);
+
 /* Send one standard frame. Returns true on success. Blocks for the duration of the frame. */
 bool fis_can_send(const fis_can_frame_t *frame);
 

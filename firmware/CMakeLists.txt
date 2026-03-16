@@ -11,6 +11,7 @@ add_executable(pico_fis_bridge
     fis_config.c
     fis_can.c
     fis_can_oem.c
+    fis_can_rx.c
     fis_rx.c
     fis_display.c
     serial_parser.c

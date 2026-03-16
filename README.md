@@ -79,6 +79,7 @@ PCB and schematic are designed in [KiCad](https://www.kicad.org/). Design files 
 - [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
 - [8. Software Stack Summary](#8-software-stack-summary)
 - [9. Key References](#9-key-references)
+- [10. Possible screen upgrade (MSP3222)](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
 
 ---
 
@@ -778,19 +779,81 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 | Raspberry Pi Pico 2 W datasheet | https://datasheets.raspberrypi.com/picow/pico-2-w-datasheet.pdf |
 
 
-## 10. Possible screen update
-MSP3222 — 3.2" IPS ILI9341
+## 10. Possible screen upgrade (MSP3222 — 3.2" IPS ILI9341)
 
-PCB size 55.04×77.70mm, active area 48.6×64.8mm, IPS full viewing angle, 240×320, 262K colours, 4-wire SPI, operating temperature −30 to +80°C.
-Fits comfortably within the 67×85mm OEM space with a small adapter frame.
-The TFT_eSPI library has full Pico (RP2040) support with DMA — fast updates.
-ILI9341 and ST7796 SPI based displays are recommended as starting points for TFT_eSPI.
-3.3V logic — direct connection to Pico, no level shifter.
-Optional capacitive touchscreen version (MSP3223) if you ever want touch input
-Cheap and widely available.
+A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: the **MSP3222** (3.2" IPS, ILI9341 controller) has PCB size 55.04 x 77.70 mm, active area 48.6 x 64.8 mm, IPS full viewing angle, 240x320 pixels, 262K colours, 4-wire SPI, and operating temperature -30 to +80 C. It fits within the 67 x 85 mm OEM FIS space with a small adapter frame. 3.3 V logic allows direct connection to the Pico with no level shifter. An optional capacitive touchscreen variant (MSP3223) is available if touch input is desired. The part is cheap and widely available. **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
 
-Backlight — either always on, or PWM from Pico tied to KO2_Bel_Displ for auto-dimming.
-Its a display brightness signal from the cluster, sent on the K-CAN in message mKombi_2 (0x420).
+**Icons:** Any updated screen + Pico firmware that implements the MSP3222 UI should use the icon artwork from the **nav-icons** folder (SVG sources; convert to the format your display driver needs). The existing `firmware/fis_nav_icons.h` bitmaps are 64x64 1-bit for the stock FIS; for a colour TFT you can derive icons from the same SVGs in nav-icons.
+
+**If the screen is upgraded** to the MSP3222 (or similar TFT), the following do **not** need to be populated on the PCB: **R2–R7**, **Q1–Q3**, and wires soldered into **J1** (the 3LB level-shifter and connector parts are for driving the stock FIS only).
+
+**MSP3222 full 14-pin header pinout (2.54 mm / 0.1" pitch).** For 4-wire SPI display use pins 1–8; MISO (pin 9) and touch pins (10–14) are not needed for write-only display on the MSP3222.
+
+| Pin | Label    | Description |
+|-----|----------|-------------|
+| 1   | VCC      | 5 V or 3.3 V power |
+| 2   | GND      | Ground |
+| 3   | CS       | Chip select (active low) |
+| 4   | RESET    | Reset (active low) |
+| 5   | DC/RS    | Data/Command select |
+| 6   | SDI (MOSI) | SPI data in |
+| 7   | SCK      | SPI clock |
+| 8   | LED      | Backlight (high = on, or connect to PWM) |
+| 9   | SDO (MISO) | SPI data out (not needed for write-only) |
+| 10  | T_CLK    | Touch SPI clock (not used on MSP3222) |
+| 11  | T_CS     | Touch chip select (not used on MSP3222) |
+| 12  | T_DIN    | Touch SPI input (not used on MSP3222) |
+| 13  | T_DO     | Touch SPI output (not used on MSP3222) |
+| 14  | T_IRQ    | Touch interrupt (not used on MSP3222) |
+
+The connector is a standard **2.54 mm (0.1") pitch straight male pin header** (breadboard-compatible) that mates with any standard 2.54 mm female Dupont connector.
+
+**Preferred Pico pins for the screen:** Use **GPIO 16 to 22** to interface the Raspberry Pi Pico to the MSP3222 (e.g. assign CS, RESET, DC, MOSI, SCK, and LED backlight PWM within this range in your display driver).
+
+**Display driver (Pico C SDK):** This project uses the **Pico C SDK**, not Arduino. TFT_eSPI is Arduino-based and does not directly fit without an Arduino/Pico wrapper. For native Pico C SDK use, consider:
+- **[rprouse/ILI9341_PICO_DisplayExample](https://github.com/rprouse/ILI9341_PICO_DisplayExample)** — native Pico C SDK, ILI9341 SPI TFT, directly relevant; example code and pin setup for 240x320 displays.
+- **pico-ili9341** (martinkooij) — native C SDK ILI9341 driver for Pico.
+- **LCD wiki** — C51/STM32 examples for the MSP3222; the SPI protocol is identical, only GPIO mapping differs.
+
+**Backlight:** Either drive the backlight always on, or use PWM from the Pico tied to **KO2_Bel_Displ** for auto-dimming. KO2_Bel_Displ is the display brightness signal from the cluster, sent on the K-CAN in message mKombi_2 (0x420).
+
+The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_can_rx.c` and `fis_can_rx_state_t` in `firmware/fis_can_rx.h`. With a new screen fitted you can use the parsed state for graphics.
+
+**With a new screen fitted you can do:**
+
+**From K-CAN the Pico knows:**
+- Vehicle speed – animated speedo needle or bar
+- Outside temperature – with colour coding (blue to white to red)
+- Fuel level – animated gauge
+- Display brightness – auto-dim the MSP3222 backlight
+- Ignition state – wake/sleep animations
+- Reverse gear – switch to a different screen layout
+- Door status – animated car outline showing open doors
+- Hazard lights – visual indicator
+- Wipers active – rain animation
+- PDC obstacles – animated proximity bars front/rear
+- Coolant/oil warnings – animated warning icons
+- Glow plug – animated diesel preheat indicator
+- Standzeit – how long the car has been parked
+
+**From 3LB RX the Pico knows:**
+- Navigation turn instructions – animated arrow
+- Street names
+- Radio/media info
+
+**From Navit D-Bus:**
+- Turn-by-turn with distance – animated countdown bar
+- ETA
+- Current speed vs limit
+
+**The MSP3222 gives you:**
+- 240x320 colour IPS
+- Smooth gradients
+- Icons and bitmaps (use nav-icons SVGs as sources)
+- Multiple fonts
+- 262K colours
+- Fast SPI refresh with a native Pico C SDK driver (see display driver options above)
+
 ---
 
 *Platform: VW Passat B6 (3C), 2005–2010, PQ46 platform.
