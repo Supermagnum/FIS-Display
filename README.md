@@ -231,6 +231,7 @@ Enable D-Bus in `navit.xml`:
 ### 2.5 D-Bus Listener to Pico Bridge Script
 
 A bridge script runs on the host device and forwards Navit D-Bus attributes to the Pico over USB CDC or Bluetooth SPP. This repo includes **`tools/navit_dbus_to_pico_bridge.py`**, which implements the protocol and **eco_mode_fuel_enabled** support (Driver Break plugin): when `get_attr("eco_mode_fuel_enabled")` is true and a route has just been calculated (`navigation_status` = `routing`), it sends the eco icon for a short period (default 2.5 s), then the real first turn and distance so the FIS never shows eco instead of routing.
+
 The driver break plugin is waiting for merging into the official github repo, its also awaiting testing on hardware.
 Read: https://github.com/navit-gps/navit/pull/1419
 
