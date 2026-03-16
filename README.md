@@ -789,6 +789,8 @@ ILI9341 and ST7796 SPI based displays are recommended as starting points for TFT
 Optional capacitive touchscreen version (MSP3223) if you ever want touch input
 Cheap and widely available.
 
+Backlight — either always on, or PWM from Pico tied to KO2_Bel_Displ for auto-dimming.
+Its a display brightness signal from the cluster, sent on the K-CAN in message mKombi_2 (0x420).
 ---
 
 *Platform: VW Passat B6 (3C), 2005–2010, PQ46 platform.
