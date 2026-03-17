@@ -794,42 +794,34 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 | Raspberry Pi Pico 2 W datasheet | https://datasheets.raspberrypi.com/picow/pico-2-w-datasheet.pdf |
 
 
-## 10. Possible screen upgrade (MSP3222 — 3.2" IPS ILI9341)
+## 10. Possible screen upgrade
 
-A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: the **MSP3222** (3.2" IPS, ILI9341 controller) has PCB size 55.04 x 77.70 mm, active area 48.6 x 64.8 mm, IPS full viewing angle, 240x320 pixels, 262K colours, 4-wire SPI, and operating temperature -30 to +80 C. It fits within the 67 x 85 mm OEM FIS space with a small adapter frame. 3.3 V logic allows direct connection to the Pico with no level shifter. An optional capacitive touchscreen variant (MSP3223) is available if touch input is desired. The part is cheap and widely available. **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
+A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: MSP3525 — 3.5" IPS SPI Module ST7796 (No Touch)
+Key Specifications
+ParameterValueScreen size3.5 inchPanel typeIPS (full viewing angle)Resolution320×480 pixelsActive area48.96×73.44 mmTFT outline55.50×84.96×2.5 mmPCB size (with header)55.5×98.0×12.98 mmDriver ICST7796UInterface4-wire SPIColors16.7MBrightness300 cd/m²Backlight6× white LEDWorking voltage3.3V or 5VBacklight current95 mAPower0.5WOperating temp−30 to +80°CSD card slotMicro TFConnector14P 2.54mm header + 14P 0.5mm FPCWeight73g
 
-**Icons:** Any updated screen + Pico firmware that implements the MSP3222 UI should use the icon artwork from the **nav-icons** folder (SVG sources; convert to the format your display driver needs). The existing `firmware/fis_nav_icons.h` bitmaps are 64x64 1-bit for the stock FIS; for a colour TFT you can derive icons from the same SVGs in nav-icons.
+14-Pin Header Pinout
+PinLabelDescription1VCCPower (3.3V or 5V)2GNDGround3LCD_CSChip select, active low4LCD_RSTReset, active low5LCD_RSData/Command (high=data, low=command)6SDI (MOSI)SPI data in (shared with SD)7SCKSPI clock (shared with SD)8LEDBacklight PWM or 3.3V for always-on9SDO (MISO)SPI data out (shared with SD)10CTP_SCLTouch I²C clock — not used on MSP352511CTP_RSTTouch reset — not used on MSP352512CTP_SDATouch I²C data — not used on MSP352513CTP_INTTouch interrupt — not used on MSP352514SD_CSSD card chip select, active low
 
-**If the screen is upgraded** to the MSP3222 (or similar TFT), the following do **not** need to be populated on the PCB: **R2–R7**, **Q1–Q3**, and wires soldered into **J1** (the 3LB level-shifter and connector parts are for driving the stock FIS only).
+Notes for this project
 
-**MSP3222 full 14-pin header pinout (2.54 mm / 0.1" pitch).** For 4-wire SPI display use pins 1–8; MISO (pin 9) and touch pins (10–14) are not needed for write-only display on the MSP3222.
+Pins 10–13 are unpopulated on the MSP3525 (no touch hardware)
+MOSI, MISO and SCK are shared between LCD and SD card — only CS lines differ
+LED pin connects to Pico PWM for KO2_Bel_Displ auto-dimming
+SD_CS is a separate CS pin — SD card and display share SPI1 on the Pico
+Full TFT_eSPI support on RP2040  **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
 
-| Pin | Label    | Description |
-|-----|----------|-------------|
-| 1   | VCC      | 5 V or 3.3 V power |
-| 2   | GND      | Ground |
-| 3   | CS       | Chip select (active low) |
-| 4   | RESET    | Reset (active low) |
-| 5   | DC/RS    | Data/Command select |
-| 6   | SDI (MOSI) | SPI data in |
-| 7   | SCK      | SPI clock |
-| 8   | LED      | Backlight (high = on, or connect to PWM) |
-| 9   | SDO (MISO) | SPI data out (not needed for write-only) |
-| 10  | T_CLK    | Touch SPI clock (not used on MSP3222) |
-| 11  | T_CS     | Touch chip select (not used on MSP3222) |
-| 12  | T_DIN    | Touch SPI input (not used on MSP3222) |
-| 13  | T_DO     | Touch SPI output (not used on MSP3222) |
-| 14  | T_IRQ    | Touch interrupt (not used on MSP3222) |
+**Icons:** Any updated screen + Pico firmware that implements the MSP3525 UI should use the icon artwork from the **nav-icons** folder (SVG sources; convert to the format your display driver needs). The existing `firmware/fis_nav_icons.h` bitmaps are 64x64 1-bit for the stock FIS; for a colour TFT you can derive icons from the same SVGs in nav-icons.
+
+**If the screen is upgraded** to MSP3525  (or similar TFT), the following do **not** need to be populated on the PCB: **R2–R7**, **Q1–Q3**, and wires soldered into **J1** (the 3LB level-shifter and connector parts are for driving the stock FIS only).
+
+
 
 The connector is a standard **2.54 mm (0.1") pitch straight male pin header** (breadboard-compatible) that mates with any standard 2.54 mm female Dupont connector.
 
-**Preferred Pico pins for the screen:** Use **GPIO 16 to 22** to interface the Raspberry Pi Pico to the MSP3222 (e.g. assign CS, RESET, DC, MOSI, SCK, and LED backlight PWM within this range in your display driver).
+**Preferred Pico pins for the screen:** Use **GPIO 16 to 22** to interface the Raspberry Pi Pico to the MSP3525 (e.g. assign CS, RESET, DC, MOSI, SCK, and LED backlight PWM within this range in your display driver).
 
-**Display driver (Pico C SDK):** This project uses the **Pico C SDK**, not Arduino. TFT_eSPI is Arduino-based and does not directly fit without an Arduino/Pico wrapper. For native Pico C SDK use, consider:
-- **[rprouse/ILI9341_PICO_DisplayExample](https://github.com/rprouse/ILI9341_PICO_DisplayExample)** — native Pico C SDK, ILI9341 SPI TFT, directly relevant; example code and pin setup for 240x320 displays.
-- **pico-ili9341** (martinkooij) — native C SDK ILI9341 driver for Pico.
-- **LCD wiki** — C51/STM32 examples for the MSP3222; the SPI protocol is identical, only GPIO mapping differs.
-
+**Display driver (Pico C SDK):** This project uses the **Pico C SDK**, not Arduino. TFT_eSPI is Arduino-based and does not directly fit without an Arduino/Pico wrapper. 
 **Backlight:** Either drive the backlight always on, or use PWM from the Pico tied to **KO2_Bel_Displ** for auto-dimming. KO2_Bel_Displ is the display brightness signal from the cluster, sent on the K-CAN in message mKombi_2 (0x420).
 
 The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_can_rx.c` and `fis_can_rx_state_t` in `firmware/fis_can_rx.h`. With a new screen fitted you can use the parsed state for graphics.
@@ -861,16 +853,8 @@ The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_c
 - ETA
 - Current speed vs limit
 
-**The MSP3222 gives you:**
-- 240x320 colour IPS
-- Smooth gradients
-- Icons and bitmaps (use nav-icons SVGs as sources)
-- Multiple fonts
-- 262K colours
-- Fast SPI refresh with a native Pico C SDK driver (see display driver options above)
-- SD card slot
 
-For 50 animations, 4 seconds long at 25 fps 240×320 (full screen) the estimated space needed is:
+For 50 animations, 4 seconds long at 25 fps 240×320( screen cropped to fit the plastic bezel) the estimated space needed is:
 - 14.65 MB Per animation
 - 732 MB Total (worst case)
 - 366 MB Total (avg ~50% length)
