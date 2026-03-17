@@ -37,7 +37,7 @@ VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 - [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
 - [8. Software Stack Summary](#8-software-stack-summary)
 - [9. Key References](#9-key-references)
-- [10. Possible screen upgrade (MSP3222)](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
+- [10. Possible screen upgrade ](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
 
 ---
 ## Disclaimer
