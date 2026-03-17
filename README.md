@@ -797,10 +797,9 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 
 ## 10. Possible screen upgrade
 
-Finding something that has a large enough active area is not easy, so this is only used as a example:
+Finding something that has a large enough active area and is compatible with the pico is not easy, so this is only used as a example:
 
 A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: **MSP3525** — 3.5" IPS SPI module, ST7796 (no touch).
-
 
 **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
 
@@ -937,6 +936,21 @@ The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_c
 - Turn-by-turn with distance – animated countdown bar
 - ETA
 - Current speed vs limit
+
+A more viable solution with some rewriting of the code,some software cropping of the screen and a new PCB is:
+
+## Proposed System Components
+
+| Component | Choice |
+|---|---|
+| **SBC** | Raspberry Pi 5 (85×56mm) |
+| **Display** | Waveshare 5inch DSI LCD (D) — 720×1280, ILI9881C, 68.04×120.96mm active area |
+| **Active area vs OEM** | 68.04mm wide (+1mm), 120.96mm tall (excess hidden by bezel) |
+| **CAN bus** | MCP2515 + MCP2561 via SPI (Linux `mcp251x` kernel driver) |
+| **3LB bus** | 74LVC245 level shifter → GPIO, read by userspace daemon |
+| **Navit D-Bus** | Native on Linux — simpler than Pico approach |
+| **Power** | 12V → 5V/3A DC-DC (e.g. Pololu D24V22F5), powers Pi 5 via USB-C |
+| **Backlight** | PWM via GPIO → display BL pin, driven by `KO2_Bel_Displ` from K-CAN |
 
 **Animation storage (estimate):** For 50 animations, 4 seconds long at 25 fps, 240x320 (screen cropped to fit the plastic bezel), estimated space:
 - 14.65 MB per animation
