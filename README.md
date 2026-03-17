@@ -457,11 +457,16 @@ USB CDC and Bluetooth SPP simultaneously.
 | DATA | Serial data | Master → Cluster |
 | CLK | Clock | Master → Cluster |
 
-Bus runs at **5 V logic**, 2300 Hz. Pico GPIO is 3.3 V — level shifting required on all lines.
+Bus runs at **5 V logic**. The 3LB clock speed is **suspected to be ~125–130 kHz** (transmission/bit rate). The actual documented value is difficult to find; the BAP FCNav function catalogue does not specify the physical layer, and other sources sometimes quote conflicting numbers (e.g. 2300 Hz or 2300 kHz). The firmware is configured for ~125 kHz by default; see below for how to measure the speed on your bus and adjust the code. Pico GPIO is 3.3 V — level shifting required on all lines.
 
-**Bus arbitration:** Before transmitting, a master raises ENA to claim the bus. If ENA is already
-high it waits. The cluster acknowledges with a 100 µs pulse. The Pico and ECU safely share the
-bus without any relay or switch.
+**Bus arbitration:** Before transmitting, a master pulls ENA low to claim the bus. If ENA is already
+low (another device is transmitting), it waits. The cluster acknowledges with a 100 µs pulse (e.g. ENA high). The Pico and ECU safely share the bus without any relay or switch.
+
+**Measuring 3LB clock speed and adjusting the firmware:** To confirm or correct the bus speed on your cluster:
+
+1. **Measure the CLK line** with an oscilloscope or logic analyzer while the OEM radio or nav unit is transmitting to the cluster (or while the Pico is transmitting). Measure the frequency of the CLK signal during an active frame (ENA low). One full clock period = one bit; the frequency in Hz is the bit rate.
+2. **If your measured frequency differs from ~125 kHz**, edit the firmware to match. In `firmware/fis_display.c`, change the constant `FIS_3LB_TX_CLK_HZ` (default 125000) to your measured value in Hz. Rebuild and flash. Example: if you measure 130 kHz, set `#define FIS_3LB_TX_CLK_HZ 130000u`.
+3. **Optional:** If you have a different PIO program with a different number of cycles per bit, adjust `FIS_3LB_TX_CYCLES_PER_BIT` (default 6) to match so the divider calculation stays correct.
 
 ### 5.3 Level Shifting
 

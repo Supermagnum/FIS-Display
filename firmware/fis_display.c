@@ -4,6 +4,7 @@
  #include <stdio.h>
  #include <string.h>
 
+ #include "hardware/clocks.h"
  #include "hardware/gpio.h"
 
  #include "fis_3lb_tx.pio.h"
@@ -17,6 +18,12 @@
  #define FIS_3LB_CLAIM_CLEAR  0x82u  /* claim and clear, normal color */
  #define FIS_3LB_BMP_OR       0x02u  /* bitmap OR output (normal) */
  #define FIS_3LB_BLOCK_MAX    42u    /* max bytes per 3LB frame */
+
+ /* Target 3LB CLK frequency (Hz). Suspected ~125-130 kHz; adjust if you measure differently.
+  * See main README section 5.2 (3LB bus speed and "Measuring 3LB clock speed and adjusting the firmware"). */
+ #define FIS_3LB_TX_CLK_HZ   125000u
+ /* PIO cycles per bit in fis_3lb_tx.pio (out + nop side 1 + nop side 0 + jmp) */
+ #define FIS_3LB_TX_CYCLES_PER_BIT  6u
 
  static PIO  s_pio      = pio0;
  static uint s_sm       = 1;
@@ -74,6 +81,11 @@
 
      // Shift right, autopull after 8 bits.
      sm_config_set_out_shift(&c, true, true, 8);
+
+     /* Run TX state machine at FIS_3LB_TX_CLK_HZ so CLK output matches suspected 3LB bus speed. */
+     uint32_t sys_hz = clock_get_hz(clk_sys);
+     float div = (float)sys_hz / ((float)FIS_3LB_TX_CLK_HZ * (float)FIS_3LB_TX_CYCLES_PER_BIT);
+     sm_config_set_clkdiv(&c, div);
 
      pio_sm_init(s_pio, s_sm, offset, &c);
      pio_sm_set_enabled(s_pio, s_sm, true);

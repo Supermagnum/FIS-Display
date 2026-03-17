@@ -49,6 +49,8 @@ All 3LB lines must be level-shifted between the 5 V car bus and the Pico's 3.3 V
 - `GPIO4` – `FIS_PIN_CLK_OUT` (CLK, PIO SM1 side-set, via level shifter)
 - `GPIO5` – `FIS_PIN_DATA_OUT` (DATA, PIO SM1 out_base, via level shifter)
 
+The TX clock rate is set to **~125 kHz** by default (suspected 3LB bus speed; see main [README section 5.2](../README.md#52-the-3lb-three-line-bus)). To match a different measured speed on your cluster, change `FIS_3LB_TX_CLK_HZ` in `fis_display.c` and rebuild; the main README describes how to measure the CLK line and adjust.
+
 **Optional CAN (firmware has full support; when enabled, MCP2561):** The CAN transceiver is the MCP2561. Two signal connections to the Pico: TXD and RXD. 3.3 V; no level shifter needed. See `fis_can.h` for `FIS_CAN_PIN_*`.
 
 | GPIO   | Symbol            | Direction | Function              |
