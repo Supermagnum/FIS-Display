@@ -797,7 +797,10 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 
 ## 10. Possible screen upgrade
 
+Finding something that has a large enough active area is not easy, so this is only used as a example:
+
 A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: **MSP3525** — 3.5" IPS SPI module, ST7796 (no touch).
+
 
 **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
 
