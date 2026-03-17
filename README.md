@@ -37,7 +37,7 @@ VW Passat B6 FIS/MFA Display — Hardware Connections and Software Protocols.
 - [7. Firmware Runtime Behaviour](#7-firmware-runtime-behaviour)
 - [8. Software Stack Summary](#8-software-stack-summary)
 - [9. Key References](#9-key-references)
-- [10. Possible screen upgrade ](#10-possible-screen-upgrade-msp3222--32-ips-ili9341)
+- [10. Possible screen upgrade](#10-possible-screen-upgrade)
 
 ---
 ## Disclaimer
@@ -235,8 +235,7 @@ Enable D-Bus in `navit.xml`:
 
 A bridge script runs on the host device and forwards Navit D-Bus attributes to the Pico over USB CDC or Bluetooth SPP. This repo includes **`tools/navit_dbus_to_pico_bridge.py`**, which implements the protocol and **eco_mode_fuel_enabled** support (Driver Break plugin): when `get_attr("eco_mode_fuel_enabled")` is true and a route has just been calculated (`navigation_status` = `routing`), it sends the eco icon for a short period (default 2.5 s), then the real first turn and distance so the FIS never shows eco instead of routing.
 
-The driver break plugin is waiting for merging into the official github repo, its also awaiting testing on hardware.
-Read: https://github.com/navit-gps/navit/pull/1419
+The driver-break plugin is awaiting merge and hardware testing; see [navit-gps/navit#1419](https://github.com/navit-gps/navit/pull/1419).
 
 **Run (host):**
 ```bash
@@ -394,11 +393,8 @@ The plugin exposes a boolean attribute **eco_mode_fuel_enabled** on the Navit D-
    - `eco_mode_fuel_enabled` is true, and
    - Route planning has just completed (e.g. `navigation_status` went to `routing`) or the route is ready and you are about to send the first maneuver.
 3. Send `NAV:TURN:eco_mode` for a **short fixed duration** (e.g. 2–3 seconds), then immediately send the real first turn and distance (`NAV:TURN:<code>`, `NAV:DIST:<m>`) so the FIS shows the actual routing instruction. Never send or keep sending `eco_mode` when the user should see a turn icon (left, right, etc.).
-   
-The driver break plugin is waiting for merging into the official github repo, its also awaiting testing on hardware.
-Read: https://github.com/navit-gps/navit/pull/1419
 
-   
+The driver-break plugin is awaiting merge into the official Navit repo and hardware testing. See: https://github.com/navit-gps/navit/pull/1419
 
 **Firmware behaviour:** The Pico displays whatever `NAV:TURN` code the host last sent. The **host is responsible** for never letting eco_mode override a maneuver: the bridge must only send `NAV:TURN:eco_mode` in the narrow window described above and then replace it with the real maneuver.
 
@@ -461,7 +457,7 @@ USB CDC and Bluetooth SPP simultaneously.
 | DATA | Serial data | Master → Cluster |
 | CLK | Clock | Master → Cluster |
 
-Bus runs at **5 V logic**,  2300 Hz,Pico GPIO is 3.3 V — level shifting required on all lines.
+Bus runs at **5 V logic**, 2300 Hz. Pico GPIO is 3.3 V — level shifting required on all lines.
 
 **Bus arbitration:** Before transmitting, a master raises ENA to claim the bus. If ENA is already
 high it waits. The cluster acknowledges with a 100 µs pulse. The Pico and ECU safely share the
@@ -796,33 +792,114 @@ KO3_Standzeit = time since last ignition-off in 4-second steps (max ~36.4 h).
 
 ## 10. Possible screen upgrade
 
-A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: MSP3525 — 3.5" IPS SPI Module ST7796 (No Touch)
-Key Specifications
-ParameterValueScreen size3.5 inchPanel typeIPS (full viewing angle)Resolution320×480 pixelsActive area48.96×73.44 mmTFT outline55.50×84.96×2.5 mmPCB size (with header)55.5×98.0×12.98 mmDriver ICST7796UInterface4-wire SPIColors16.7MBrightness300 cd/m²Backlight6× white LEDWorking voltage3.3V or 5VBacklight current95 mAPower0.5WOperating temp−30 to +80°CSD card slotMicro TFConnector14P 2.54mm header + 14P 0.5mm FPCWeight73g
+A possible future upgrade from the stock 64x88 monochrome FIS to a colour TFT: **MSP3525** — 3.5" IPS SPI module, ST7796 (no touch).
 
-14-Pin Header Pinout
-PinLabelDescription1VCCPower (3.3V or 5V)2GNDGround3LCD_CSChip select, active low4LCD_RSTReset, active low5LCD_RSData/Command (high=data, low=command)6SDI (MOSI)SPI data in (shared with SD)7SCKSPI clock (shared with SD)8LEDBacklight PWM or 3.3V for always-on9SDO (MISO)SPI data out (shared with SD)10CTP_SCLTouch I²C clock — not used on MSP352511CTP_RSTTouch reset — not used on MSP352512CTP_SDATouch I²C data — not used on MSP352513CTP_INTTouch interrupt — not used on MSP352514SD_CSSD card chip select, active low
+**No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
 
-Notes for this project
+### Key specifications (MSP3525)
 
-Pins 10–13 are unpopulated on the MSP3525 (no touch hardware)
-MOSI, MISO and SCK are shared between LCD and SD card — only CS lines differ
-LED pin connects to Pico PWM for KO2_Bel_Displ auto-dimming
-SD_CS is a separate CS pin — SD card and display share SPI1 on the Pico
-Full TFT_eSPI support on RP2040  **No firmware support for the updated screen or TFT icons is included in this repository** — the following is for implementers.
+| Parameter | Value |
+|-----------|-------|
+| Screen size | 3.5 inch |
+| Panel type | IPS (full viewing angle) |
+| Resolution | 320x480 pixels |
+| Active area | 48.96 x 73.44 mm |
+| TFT outline | 55.50 x 84.96 x 2.5 mm |
+| PCB size (with header) | 55.5 x 98.0 x 12.98 mm |
+| Driver IC | ST7796U |
+| Interface | 4-wire SPI |
+| Colors | 16.7M |
+| Brightness | 300 cd/m² |
+| Backlight | 6x white LED |
+| Working voltage | 3.3 V or 5 V |
+| Backlight current | 95 mA |
+| Power | 0.5 W |
+| Operating temp | -30 to +80 C |
+| SD card slot | Micro TF |
+| Connector | 14P 2.54 mm header + 14P 0.5 mm FPC |
+| Weight | 73 g |
+
+### 14-pin header pinout
+
+| Pin | Label | Description |
+|-----|-------|--------------|
+| 1 | VCC | Power (3.3 V or 5 V) |
+| 2 | GND | Ground |
+| 3 | LCD_CS | Chip select, active low |
+| 4 | LCD_RST | Reset, active low |
+| 5 | LCD_RS | Data/Command (high = data, low = command) |
+| 6 | SDI (MOSI) | SPI data in (shared with SD) |
+| 7 | SCK | SPI clock (shared with SD) |
+| 8 | LED | Backlight PWM or 3.3 V for always-on |
+| 9 | SDO (MISO) | SPI data out (shared with SD) |
+| 10 | CTP_SCL | Touch I2C clock — not used on MSP3525 |
+| 11 | CTP_RST | Touch reset — not used on MSP3525 |
+| 12 | CTP_SDA | Touch I2C data — not used on MSP3525 |
+| 13 | CTP_INT | Touch interrupt — not used on MSP3525 |
+| 14 | SD_CS | SD card chip select, active low |
+
+**Notes for this project:**
+- Pins 10–13 are unpopulated on the MSP3525 (no touch hardware).
+- MOSI, MISO and SCK are shared between LCD and SD card — only CS lines differ.
+- LED pin connects to Pico PWM for KO2_Bel_Displ auto-dimming.
+- SD_CS is a separate CS pin — SD card and display share SPI; use separate CS on the Pico.
+- TFT_eSPI has RP2040 support.
 
 **Icons:** Any updated screen + Pico firmware that implements the MSP3525 UI should use the icon artwork from the **nav-icons** folder (SVG sources; convert to the format your display driver needs). The existing `firmware/fis_nav_icons.h` bitmaps are 64x64 1-bit for the stock FIS; for a colour TFT you can derive icons from the same SVGs in nav-icons.
 
-**If the screen is upgraded** to MSP3525  (or similar TFT), the following do **not** need to be populated on the PCB: **R2–R7**, **Q1–Q3**, and wires soldered into **J1** (the 3LB level-shifter and connector parts are for driving the stock FIS only).
-
-
+**If the screen is upgraded** to the MSP3525 (or similar TFT), the following do **not** need to be populated on the PCB: **R2–R7**, **Q1–Q3**, and wires soldered into **J1** (the 3LB level-shifter and connector parts are for driving the stock FIS only).
 
 The connector is a standard **2.54 mm (0.1") pitch straight male pin header** (breadboard-compatible) that mates with any standard 2.54 mm female Dupont connector.
 
 **Preferred Pico pins for the screen:** Use **GPIO 16 to 22** to interface the Raspberry Pi Pico to the MSP3525 (e.g. assign CS, RESET, DC, MOSI, SCK, and LED backlight PWM within this range in your display driver).
 
-**Display driver (Pico C SDK):** This project uses the **Pico C SDK**, not Arduino. TFT_eSPI is Arduino-based and does not directly fit without an Arduino/Pico wrapper. 
+**Display driver (Pico C SDK):** This project uses the **Pico C SDK**, not Arduino. TFT_eSPI is Arduino-based and does not directly fit without an Arduino/Pico wrapper.
+
+The [LCD wiki](https://www.lcdwiki.com/) provides official demo code for the MSP3218/MSP3222. Relevant downloads: [LCD wiki MSP3218 resources](https://www.lcdwiki.com/res/MSP3218/) — contains Arduino, C51 and STM32 examples. None of these are native Pico C SDK.
+
+**Best options for this project (native Pico C SDK or plain C):**
+
+| Option | URL | Notes |
+|--------|-----|-------|
+| Native Pico C SDK — ILI9341 | [rprouse/ILI9341_PICO_DisplayExample](https://github.com/rprouse/ILI9341_PICO_DisplayExample) | Already found; native Pico SDK, most directly usable |
+| Clean C driver (easily ported to Pico) | [afiskon/stm32-ili9341](https://github.com/afiskon/stm32-ili9341) | Clean STM32 HAL C driver, well structured, plain C with SPI abstraction |
+| Most complete C library | [martnak/STM32-ILI9341](https://github.com/martnak/STM32-ILI9341) | Full HAL driver with graphics primitives, text, bitmaps |
+
+The rprouse Pico example combined with the afiskon or martnak graphics layer gives you everything needed — initialisation, drawing primitives, text, and bitmap rendering — all in plain C that maps cleanly to the Pico SDK's `hardware/spi.h`.
+
 **Backlight:** Either drive the backlight always on, or use PWM from the Pico tied to **KO2_Bel_Displ** for auto-dimming. KO2_Bel_Displ is the display brightness signal from the cluster, sent on the K-CAN in message mKombi_2 (0x420).
+
+### Window addressing and bezel fit
+
+The ILI9341 has a built-in window addressing command — **SET_COLUMN_ADDRESS (0x2A)** and **SET_PAGE_ADDRESS (0x2B)** — which define a rectangular region of the display RAM to write to. Everything outside that window is untouched.
+
+**Workflow:**
+
+1. Measure the visible area through the bezel opening in pixels.
+2. Calculate the offset from the display edges to the bezel opening.
+3. Set the window to match. For example, if the bezel exposes a 200x280 area starting at x=20, y=20:
+
+```c
+// Set column window: x_start to x_end
+ILI9341_SetAddressWindow(20, 20, 219, 299);
+
+// Now all drawing commands only affect that region
+// Pixels outside are never written
+```
+
+This means:
+- No wasted SPI bandwidth writing pixels that are hidden
+- No flickering at the bezel edge
+- The display treats the window as its full canvas
+
+**Practical approach:**
+- Mount the display behind the bezel temporarily.
+- Power it up with a full white screen.
+- Measure through the opening which pixels are visible.
+- Hardcode those as `#define DISPLAY_X_OFFSET`, `DISPLAY_Y_OFFSET`, `DISPLAY_WIDTH`, `DISPLAY_HEIGHT`.
+- All drawing code uses those constants as the canvas bounds.
+
+This is the standard approach used in all embedded TFT projects where the display is larger than the visible window.
 
 The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_can_rx.c` and `fis_can_rx_state_t` in `firmware/fis_can_rx.h`. With a new screen fitted you can use the parsed state for graphics.
 
@@ -832,7 +909,7 @@ The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_c
 - Vehicle speed – animated speedo needle or bar
 - Outside temperature – with colour coding (blue to white to red)
 - Fuel level – animated gauge
-- Display brightness – auto-dim the MSP3222 backlight
+- Display brightness – auto-dim the TFT backlight
 - Ignition state – wake/sleep animations
 - Reverse gear – switch to a different screen layout
 - Door status – animated car outline showing open doors
@@ -853,15 +930,12 @@ The firmware parses K-CAN when CAN is enabled (`CFG:CAN:1`): see `firmware/fis_c
 - ETA
 - Current speed vs limit
 
+**Animation storage (estimate):** For 50 animations, 4 seconds long at 25 fps, 240x320 (screen cropped to fit the plastic bezel), estimated space:
+- 14.65 MB per animation
+- 732 MB total (worst case)
+- 366 MB total (avg ~50% length)
 
-For 50 animations, 4 seconds long at 25 fps 240×320( screen cropped to fit the plastic bezel) the estimated space needed is:
-- 14.65 MB Per animation
-- 732 MB Total (worst case)
-- 366 MB Total (avg ~50% length)
-
-Suggested software for animations:
-https://www.synfig.org/
-https://pixelorama.org/
+**Suggested software for animations:** [Synfig](https://www.synfig.org/), [Pixelorama](https://pixelorama.org/)
 
 
 ---
